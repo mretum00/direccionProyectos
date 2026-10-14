@@ -207,13 +207,13 @@ Subida multipart de un PDF. Devuelve el documento creado con estado `pending`.
 
 ## 8. Tipos TypeScript
 
-Ver `src/types/chat.ts`, `src/types/conversation.ts`, `src/types/document.ts`, `src/types/contract.ts`, `src/types/engine.ts`, `src/types/source.ts`.
+Ver `frontend/src/types/chat.ts`, `frontend/src/types/conversation.ts`, `frontend/src/types/document.ts`, `frontend/src/types/contract.ts`, `frontend/src/types/engine.ts`, `frontend/src/types/source.ts`.
 
 ---
 
 ## 9. Modelos Pydantic equivalentes
 
-Ver `backend-mock/models.py` para los modelos completos en Python.
+Ver `backend/models/schemas.py` para los modelos completos en Python. Los endpoints están en `backend/controllers/`.
 
 ---
 
