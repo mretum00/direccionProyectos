@@ -10,6 +10,9 @@ El contrato entre ambos lados está en [`docs/API_CONTRACT.md`](docs/API_CONTRAC
 ## Estructura
 
 ```
+.env.example              Plantilla de variables de entorno (se versiona)
+.env                      Variables reales, compartidas por front y back (NO se versiona)
+requirements.txt          Dependencias de Python del backend
 frontend/                 Interfaz React + Vite
   src/controllers/        Capa de llamadas HTTP al backend (aún no usada por la UI)
   src/services/           Aquí corre la app hoy (mock o realApi)
@@ -21,26 +24,29 @@ backend/                  API FastAPI
 docs/                     Contrato API
 ```
 
-## Cómo encender el programa
+## Requisitos
 
-Hacen falta **dos terminales**: una para el frontend y otra para el backend. Para ver la interfaz **no es obligatorio** el backend: por defecto el front usa datos mock.
+- **Node.js** (con npm) para el frontend.
+- **Python 3** para el backend.
+- Las dependencias de Python están en [`requirements.txt`](requirements.txt), **en la raíz del repositorio**.
+- Un archivo **`.env` en la raíz del repositorio** (ver siguiente sección).
 
-Requisitos: Node.js (npm) y Python 3.
+## Variables de entorno (`.env` en la raíz)
 
-### 1. Frontend (interfaz)
+El `.env` vive en la **raíz del repo**, no dentro de `frontend/` ni de `backend/`. Lo leen los dos lados:
+
+- **Frontend (Vite):** `frontend/vite.config.ts` apunta a la carpeta padre con `envDir`. Solo las variables con prefijo `VITE_` llegan al navegador, así que **nunca pongas secretos con ese prefijo**.
+- **Backend (FastAPI):** las variables sin prefijo `VITE_` (claves de LLM, URL de BD, etc.) las lee el backend. Como `uvicorn` se lanza desde `backend/`, el backend debe cargar el archivo con la ruta `../.env`.
+
+Crea el tuyo copiando la plantilla, desde la raíz del repo:
 
 ```bash
-cd frontend
-npm install
 copy .env.example .env
-npm run dev
 ```
 
 En Linux/macOS usa `cp .env.example .env` en lugar de `copy`.
 
-La app queda en **http://localhost:5173**.
-
-Variables de `.env` (copiadas de `.env.example`):
+`.env` está en `.gitignore`; `.env.example` sí se sube al repositorio.
 
 | Variable | Valor por defecto | Qué hace |
 |---|---|---|
@@ -49,15 +55,44 @@ Variables de `.env` (copiadas de `.env.example`):
 | `VITE_REMOTE_CONVERSATIONS` | `false` | `false`: conversaciones en `localStorage`. `true`: las pediría al backend |
 | `VITE_ENABLE_DOCUMENT_UPLOAD` | `false` | Activa la subida de PDF |
 
+Después de cambiar el `.env` hay que **reiniciar** `npm run dev` (y `uvicorn` si no usa `--reload`).
+
+## Cómo encender el programa
+
+Hacen falta **dos terminales**: una para el frontend y otra para el backend. Para ver la interfaz **no es obligatorio** el backend: por defecto el front usa datos mock.
+
+### 0. Preparación (una sola vez, desde la raíz del repo)
+
+```bash
+copy .env.example .env
+```
+
+En Linux/macOS: `cp .env.example .env`.
+
+### 1. Frontend (interfaz)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+La app queda en **http://localhost:5173**.
+
 Con `VITE_USE_MOCK=true` (el valor actual) **la UI no usa ni los controladores del front ni el backend**. El chat funciona con `src/services/mockApi.ts`.
 
 ### 2. Backend (API)
 
-En otra terminal:
+Desde la raíz del repo, instala las dependencias:
+
+```bash
+pip install -r requirements.txt
+```
+
+Y en la otra terminal arranca el servidor:
 
 ```bash
 cd backend
-pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
@@ -76,7 +111,7 @@ CORS permite el origen del Vite (`http://localhost:5173`).
 
 Si quieres que la UI hable con FastAPI en lugar del mock:
 
-1. En `frontend/.env` pon `VITE_USE_MOCK=false`.
+1. En el `.env` de la raíz pon `VITE_USE_MOCK=false`.
 2. Reinicia `npm run dev`.
 
 Eso usa `frontend/src/services/realApi.ts`, **no** `frontend/src/controllers`. Los controladores del front todavía no están conectados a la UI. Además, casi todos los endpoints del back responden 501 (no implementado), así que el chat real aún no funciona.
