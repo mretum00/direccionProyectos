@@ -1,46 +1,15 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import { conversationRepository } from '@/services/conversationRepository';
 import { useAppStore } from '@/store/appStore';
 import type { Conversation } from '@/types/conversation';
-import { uuid } from '@/services/mockData';
+import { buildConversation } from '@/utils/conversation';
+import { uuid } from '@/utils/uuid';
 
+/** Acciones sobre conversaciones. La carga inicial se hace una sola vez en <App />. */
 export function useConversations() {
   const store = useAppStore();
-  const [loaded, setLoaded] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-    conversationRepository
-      .list()
-      .then((convs) => {
-        if (mounted) {
-          store.setConversations(convs);
-          setLoaded(true);
-        }
-      })
-      .catch(() => {
-        if (mounted) setLoaded(true);
-      });
-    return () => {
-      mounted = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const createConversation = useCallback((): Conversation => {
-    const now = new Date().toISOString();
-    const conv: Conversation = {
-      id: uuid(),
-      title: 'Nueva conversación',
-      created_at: now,
-      updated_at: now,
-      favorite: false,
-      engine: store.engineSelection.engine,
-      engine_version: store.engineSelection.engine_version,
-      system: store.engineSelection.system,
-      profile: store.engineSelection.profile,
-      messages: [],
-    };
+    const conv = buildConversation(store.engineSelection);
     store.upsertConversation(conv);
     store.setActiveConversationId(conv.id);
     conversationRepository.save(conv).catch(() => {});
@@ -127,7 +96,6 @@ export function useConversations() {
   );
 
   return {
-    loaded,
     createConversation,
     selectConversation,
     renameConversation,

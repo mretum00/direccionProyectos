@@ -1,33 +1,40 @@
-import { useRef, useState, useEffect } from 'react';
-import { Send, Paperclip, Loader2 } from 'lucide-react';
-import { useChat } from '@/hooks/useChat';
+import { useEffect, useRef, useState } from 'react';
+import { Send, Square } from 'lucide-react';
 
-const ENABLE_UPLOAD = import.meta.env.VITE_ENABLE_DOCUMENT_UPLOAD === 'true';
+const MAX_TEXTAREA_HEIGHT_PX = 120;
 
 interface MessageInputProps {
-  onClarificationSubmit?: (answers: Record<string, string>) => void;
+  loading: boolean;
+  onSend: (text: string) => void;
+  onCancel: () => void;
   placeholder?: string;
 }
 
-export function MessageInput({ onClarificationSubmit, placeholder = 'Escribe tu consulta técnica…' }: MessageInputProps) {
-  const { sendMessage, loading } = useChat();
+export function MessageInput({
+  loading,
+  onSend,
+  onCancel,
+  placeholder = 'Escribe tu consulta técnica…',
+}: MessageInputProps) {
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
-    }
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, MAX_TEXTAREA_HEIGHT_PX)}px`;
   }, [text]);
 
+  // Al terminar la consulta, devuelve el foco para poder seguir escribiendo.
+  useEffect(() => {
+    if (!loading) textareaRef.current?.focus();
+  }, [loading]);
+
   function handleSubmit() {
-    if (!text.trim() || loading) return;
-    if (onClarificationSubmit) {
-      onClarificationSubmit({ text: text.trim() });
-    } else {
-      sendMessage(text.trim());
-    }
+    const trimmed = text.trim();
+    if (!trimmed || loading) return;
+    onSend(trimmed);
     setText('');
   }
 
@@ -42,11 +49,6 @@ export function MessageInput({ onClarificationSubmit, placeholder = 'Escribe tu 
     <div className="flex-shrink-0 border-t border-white/5 bg-[#0d0d0f]/80 backdrop-blur-sm px-4 py-3">
       <div className="max-w-3xl mx-auto">
         <div className="flex items-end gap-2 bg-[#151518] border border-white/10 rounded-xl px-3 py-2 focus-within:border-cyan-500/30 transition-colors">
-          {ENABLE_UPLOAD && (
-            <button className="p-1.5 text-gray-500 hover:text-gray-300 rounded-md hover:bg-white/5">
-              <Paperclip className="w-4 h-4" />
-            </button>
-          )}
           <textarea
             ref={textareaRef}
             value={text}
@@ -54,16 +56,30 @@ export function MessageInput({ onClarificationSubmit, placeholder = 'Escribe tu 
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             rows={1}
-            disabled={loading}
-            className="flex-1 bg-transparent text-sm text-white placeholder-gray-500 outline-none resize-none disabled:opacity-50"
+            readOnly={loading}
+            className="flex-1 bg-transparent text-sm text-white placeholder-gray-500 outline-none resize-none read-only:opacity-50"
           />
-          <button
-            onClick={handleSubmit}
-            disabled={!text.trim() || loading}
-            className="flex items-center justify-center w-8 h-8 rounded-lg bg-cyan-500 text-white disabled:bg-white/5 disabled:text-gray-600 hover:bg-cyan-400 transition-colors flex-shrink-0"
-          >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </button>
+          {loading ? (
+            <button
+              type="button"
+              onClick={onCancel}
+              title="Cancelar consulta"
+              aria-label="Cancelar consulta"
+              className="flex items-center justify-center w-8 h-8 rounded-lg bg-white/10 text-gray-200 hover:bg-white/20 transition-colors flex-shrink-0"
+            >
+              <Square className="w-3.5 h-3.5 fill-current" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSubmit}
+              disabled={!text.trim()}
+              aria-label="Enviar consulta"
+              className="flex items-center justify-center w-8 h-8 rounded-lg bg-cyan-500 text-white disabled:bg-white/5 disabled:text-gray-600 hover:bg-cyan-400 transition-colors flex-shrink-0"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          )}
         </div>
         <p className="text-[10px] text-gray-600 text-center mt-1.5">
           Enter para enviar · Shift+Enter para salto de línea

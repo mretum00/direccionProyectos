@@ -3,7 +3,6 @@ import type { Page } from '@/App';
 import { EngineSelector } from '@/components/engine/EngineSelector';
 import { ProfileSwitch } from '@/components/engine/ProfileSwitch';
 import { Logo } from './Logo';
-import { DemoBadge } from './DemoBadge';
 
 interface HeaderProps {
   page: Page;
@@ -52,7 +51,6 @@ export function Header({ page, onPageChange, onMenuClick }: HeaderProps) {
       <div className="flex items-center gap-2 min-w-0">
         <ProfileSwitch />
         <EngineSelector />
-        <DemoBadge />
       </div>
     </header>
   );

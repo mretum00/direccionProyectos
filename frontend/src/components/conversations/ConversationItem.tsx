@@ -4,6 +4,7 @@ import type { Conversation } from '@/types/conversation';
 import { useAppStore } from '@/store/appStore';
 import { useConversations } from '@/hooks/useConversations';
 import { relativeDate } from '@/utils/dateUtils';
+import { toPlainPreview } from '@/utils/text';
 import { ConfirmationModal } from './ConfirmationModal';
 
 interface ConversationItemProps {
@@ -22,13 +23,15 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
   const isActive = store.activeConversationId === conversation.id;
   const lastMessage = conversation.messages[conversation.messages.length - 1];
 
+  // Un listener global por ítem de la lista era innecesario: solo existe con el menú abierto.
   useEffect(() => {
+    if (!menuOpen) return;
     function handler(e: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
     }
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  }, [menuOpen]);
 
   function commitRename() {
     if (renameValue.trim()) renameConversation(conversation.id, renameValue.trim());
@@ -67,7 +70,7 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
           <div className="flex items-center gap-1.5 mt-0.5">
             {conversation.favorite && <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400 flex-shrink-0" />}
             <span className="text-[10px] text-gray-500 truncate">
-              {lastMessage ? lastMessage.content.slice(0, 40) : 'Sin mensajes'}
+              {lastMessage ? toPlainPreview(lastMessage.content).slice(0, 40) : 'Sin mensajes'}
             </span>
             <span className="text-[10px] text-gray-600 flex-shrink-0">{relativeDate(conversation.updated_at)}</span>
           </div>

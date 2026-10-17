@@ -1,5 +1,5 @@
 import { Plus, Search } from 'lucide-react';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useConversations } from '@/hooks/useConversations';
 import { useAppStore } from '@/store/appStore';
 import { ConversationItem } from './ConversationItem';
@@ -16,7 +16,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
   const store = useAppStore();
   const [searchOpen, setSearchOpen] = useState(false);
 
-  const grouped = groupConversationsByDate(store.conversations);
+  const grouped = useMemo(() => groupConversationsByDate(store.conversations), [store.conversations]);
 
   return (
     <div className="flex flex-col w-full h-full bg-[#0d0d0f] border-r border-white/5">

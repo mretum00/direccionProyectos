@@ -4,6 +4,7 @@ import { Modal } from '@/components/ui/Modal';
 import { useConversations } from '@/hooks/useConversations';
 import { useAppStore } from '@/store/appStore';
 import { relativeDate } from '@/utils/dateUtils';
+import { toPlainPreview } from '@/utils/text';
 import { ENGINES } from '@/types/engine';
 
 interface ConversationSearchProps {
@@ -156,7 +157,7 @@ export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
                   )}
                   {matchSnippet && (
                     <p className="text-xs text-gray-500 mt-1 line-clamp-2">
-                      ...{matchSnippet.content.slice(0, 80)}...
+                      ...{toPlainPreview(matchSnippet.content).slice(0, 80)}...
                     </p>
                   )}
                 </button>

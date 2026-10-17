@@ -1,6 +1,7 @@
+import { apiRequest } from './httpClient';
+
 export const sourcesController = {
-  async get(_id: string): Promise<{ excerpt: string; url?: string }> {
-    // TODO: GET /api/sources/{id}
-    throw new Error('sourcesController.get no implementado');
+  get(id: string): Promise<{ excerpt: string; url?: string }> {
+    return apiRequest<{ excerpt: string; url?: string }>(`/api/sources/${encodeURIComponent(id)}`);
   },
 };

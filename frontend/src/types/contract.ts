@@ -9,7 +9,7 @@ export interface HealthResponse {
 
 export interface ApiClient {
   health(): Promise<HealthResponse>;
-  chat(request: ChatRequest): Promise<AssistantResponse>;
+  chat(request: ChatRequest, signal?: AbortSignal): Promise<AssistantResponse>;
   listDocuments(): Promise<TechnicalDocument[]>;
   uploadDocument(file: File): Promise<TechnicalDocument>;
   getSource(id: string): Promise<{ excerpt: string; url?: string }>;

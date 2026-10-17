@@ -3,7 +3,7 @@
 from enum import Enum
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class EvidenceStatus(str, Enum):
@@ -79,6 +79,19 @@ class ChatRequest(BaseModel):
     profile: Profile = Profile.mechanic
     history: List[HistoryItem] = Field(default_factory=list)
     vehicle: VehicleInfo = Field(default_factory=VehicleInfo)
+
+    @field_validator("message")
+    @classmethod
+    def _message_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("El mensaje no puede estar vacío")
+        return value
+
+    @field_validator("engine", "engine_version")
+    @classmethod
+    def _strip(cls, value: str) -> str:
+        return value.strip()
 
 
 class MessageResponse(BaseModel):

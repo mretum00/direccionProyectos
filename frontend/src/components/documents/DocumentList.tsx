@@ -2,8 +2,7 @@ import { useState } from 'react';
 import { FileText, BookOpen, GitBranch, History, Shield, BookMarked, Loader2, Upload, AlertCircle } from 'lucide-react';
 import type { TechnicalDocument, DocumentType, DocumentStatus } from '@/types/document';
 import { api } from '@/services/api';
-
-const ENABLE_UPLOAD = import.meta.env.VITE_ENABLE_DOCUMENT_UPLOAD === 'true';
+import { config } from '@/config';
 
 const TYPE_CONFIG: Record<DocumentType, { label: string; icon: typeof FileText }> = {
   manual: { label: 'Manual técnico', icon: FileText },
@@ -64,7 +63,7 @@ export function DocumentList({ documents, loading, endpointAvailable }: Document
 
   return (
     <div className="space-y-4">
-      {ENABLE_UPLOAD && (
+      {config.enableDocumentUpload && (
         <div className="flex items-center gap-3">
           <label className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${
             uploading ? 'bg-gray-500/10 text-gray-500' : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'

@@ -1,10 +1,19 @@
 import type { ApiClient } from '@/types/contract';
-import { mockApi } from './mockApi';
-import { realApi } from './realApi';
+import {
+  chatController,
+  documentsController,
+  healthController,
+  sourcesController,
+} from '@/controllers';
 
-const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false';
+/** Fachada que usa la UI. Toda la comunicación real vive en `src/controllers`. */
+export const api: ApiClient = {
+  health: () => healthController.check(),
+  chat: (request, signal) => chatController.send(request, signal),
+  listDocuments: () => documentsController.list(),
+  uploadDocument: (file) => documentsController.upload(file),
+  getSource: (id) => sourcesController.get(id),
+};
 
-export const api: ApiClient = USE_MOCK ? mockApi : realApi;
-
-export { ApiError } from './realApi';
+export { ApiError } from '@/controllers';
 export type { ApiClient } from '@/types/contract';

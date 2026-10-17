@@ -1,44 +1,51 @@
 from fastapi import APIRouter, HTTPException
 
+from db import conversations_store as store
 from models.schemas import Conversation
 
 router = APIRouter(prefix="/api", tags=["conversations"])
 
 
+def _dump(conversation: Conversation) -> dict:
+    return conversation.model_dump(mode="json")
+
+
 @router.get("/conversations")
-async def list_conversations():
-    """Listar conversaciones guardadas."""
-    # TODO: listar desde persistencia
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+def list_conversations():
+    """Listar conversaciones guardadas (más recientes primero)."""
+    return {"conversations": store.list_conversations()}
 
 
 @router.post("/conversations")
-async def create_conversation(conversation: Conversation):
+def create_conversation(conversation: Conversation):
     """Crear una conversación."""
-    # TODO: guardar conversación
-    _ = conversation
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+    data = _dump(conversation)
+    store.save_conversation(data)
+    return {"message": "Conversación creada", "data": data}
 
 
 @router.get("/conversations/{conv_id}")
-async def get_conversation(conv_id: str):
+def get_conversation(conv_id: str):
     """Recuperar una conversación por id."""
-    # TODO: leer conversación
-    _ = conv_id
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+    data = store.get_conversation(conv_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Conversación no encontrada")
+    return data
 
 
 @router.put("/conversations")
-async def update_conversation(conversation: Conversation):
+def update_conversation(conversation: Conversation):
     """Actualizar una conversación completa."""
-    # TODO: actualizar conversación
-    _ = conversation
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+    if store.get_conversation(conversation.id) is None:
+        raise HTTPException(status_code=404, detail="Conversación no encontrada")
+    data = _dump(conversation)
+    store.save_conversation(data)
+    return {"message": "Conversación actualizada", "data": data}
 
 
 @router.delete("/conversations/{conv_id}")
-async def delete_conversation(conv_id: str):
+def delete_conversation(conv_id: str):
     """Eliminar una conversación."""
-    # TODO: borrar conversación
-    _ = conv_id
-    raise HTTPException(status_code=501, detail="Not implemented yet")
+    if not store.delete_conversation(conv_id):
+        raise HTTPException(status_code=404, detail="Conversación no encontrada")
+    return {"message": f"Conversación {conv_id} eliminada correctamente"}

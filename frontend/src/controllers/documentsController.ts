@@ -1,13 +1,16 @@
 import type { TechnicalDocument } from '@/types/document';
+import { apiRequest } from './httpClient';
 
 export const documentsController = {
+  /** Lanza ApiError (404/501) si el backend aún no implementa el endpoint. */
   async list(): Promise<TechnicalDocument[]> {
-    // TODO: GET /api/documents
-    throw new Error('documentsController.list no implementado');
+    const data = await apiRequest<{ documents: TechnicalDocument[] } | TechnicalDocument[]>('/api/documents');
+    return Array.isArray(data) ? data : data.documents;
   },
 
-  async upload(_file: File): Promise<TechnicalDocument> {
-    // TODO: POST /api/documents (multipart)
-    throw new Error('documentsController.upload no implementado');
+  upload(file: File): Promise<TechnicalDocument> {
+    const formData = new FormData();
+    formData.append('file', file);
+    return apiRequest<TechnicalDocument>('/api/documents', { method: 'POST', body: formData });
   },
 };

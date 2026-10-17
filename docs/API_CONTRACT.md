@@ -238,9 +238,20 @@ El frontend **no** implementa IA, embeddings ni búsqueda vectorial. Solo envía
 
 ---
 
-## 12. Cómo cambiar de mock a backend real
+## 12. Configuración
 
-1. En `.env`, cambiar `VITE_USE_MOCK=false`
-2. Asegurar que `VITE_API_URL` apunta al backend real
-3. Reiniciar la aplicación
-4. El endpoint que el equipo de backend debe implementar primero es `POST /api/chat`
+La aplicación no tiene modo mock: el frontend siempre habla con el backend.
+
+1. Copiar `.env.example` a `.env` en la raíz del repositorio.
+2. Definir `VITE_API_URL` (frontend) y `GROQ_API_KEY` (backend). La lista completa de variables está en el `README.md`.
+3. Arrancar el backend y después el frontend.
+
+### Comportamiento esperado de `/api/chat` respecto a la versión
+
+Especificación que debe cumplir `backend/services/rag_pipeline.py`:
+
+- `engine_version` se compara (sin distinguir mayúsculas ni espacios) con las versiones presentes en la base de datos.
+- Solo se recuperan fragmentos cuyo `applicable_versions` incluye esa versión.
+- Si `engine_version` está vacía o no existe, la respuesta lleva `needs_clarification: true` y `clarification.missing_fields[0].options` con las versiones disponibles; no se consulta al LLM.
+- Si la versión existe pero no hay fragmentos aplicables, se devuelve `evidence_status: "insufficient"` y `sources: []`.
+- Los campos opcionales sin valor se omiten de la respuesta (no se envían como `null`).

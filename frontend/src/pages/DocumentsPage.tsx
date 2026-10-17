@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { FileText, AlertCircle } from 'lucide-react';
 import { DocumentList } from '@/components/documents/DocumentList';
-import { api, ApiError } from '@/services/api';
+import { api } from '@/services/api';
 import type { TechnicalDocument } from '@/types/document';
 
 export function DocumentsPage() {
@@ -19,14 +19,10 @@ export function DocumentsPage() {
           setLoading(false);
         }
       })
-      .catch((e) => {
+      .catch(() => {
         if (!mounted) return;
         setLoading(false);
-        if (e instanceof ApiError && (e.status === 404 || e.status === 501)) {
-          setEndpointAvailable(false);
-        } else {
-          setEndpointAvailable(false);
-        }
+        setEndpointAvailable(false);
       });
     return () => {
       mounted = false;
