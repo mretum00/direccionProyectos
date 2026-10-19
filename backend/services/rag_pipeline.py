@@ -38,7 +38,13 @@ Modelos del contrato de la API: models/schemas.py (ChatResponse, Source, ...).
 """
 
 from typing import Optional
+import logging
+import uuid
 
+from click import prompt
+from config import settings
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # 1. Validar la consulta y la versión del motor           [Persona A]
@@ -118,6 +124,17 @@ def construir_prompt(mensaje_original: str, fragmentos: list[dict], perfil: str)
     pass
 
 
+_cliente_groq = None
+
+def _obtener_cliente():
+    global _cliente_groq
+    if _cliente_groq is None:
+        if not settings.groq_api_key:
+            raise RuntimeError("Falta GROQ_API_KEY en el archivo .env")
+        from groq import Groq
+        _cliente_groq = Groq(api_key=settings.groq_api_key, timeout=30)
+    return _cliente_groq
+
 # ---------------------------------------------------------------------------
 # 6. Llamar al LLM y obtener la respuesta                 [Persona D]
 # ---------------------------------------------------------------------------
@@ -129,12 +146,22 @@ def generar_respuesta(prompt: str) -> str:
     #   - Devolver el texto de la respuesta, o un mensaje de "sin evidencia"
     #     si el LLM devuelve vacío.
     #   - Gestionar fallos de red/timeout sin exponer detalles internos.
-    pass
+    cliente = _obtener_cliente()
+    try:
+        respuesta = cliente.chat.completions.create(
+        model=settings.llm_model,
+        temperature=settings.llm_temperature,
+        messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception:
+        logger.exception("Error al llamar a Groq")
+    raise RuntimeError("No se pudo obtener respuesta del modelo en este momento.")
 
+    texto = (respuesta.choices[0].message.content or "").strip()
+    if not texto:
+        return "No hay evidencia suficiente para responder. Se recomienda escalar la incidencia."
+    return texto
 
-# ---------------------------------------------------------------------------
-# 7. Construir las fuentes que se muestran al usuario     [Persona D]
-# ---------------------------------------------------------------------------
 def construir_fuentes(fragmentos: list[dict], version: str) -> list[dict]:
     # Qué debe hacer:
     #   - Convertir cada fragmento en una fuente del contrato de la API:
@@ -145,7 +172,38 @@ def construir_fuentes(fragmentos: list[dict], version: str) -> list[dict]:
     #     DTC -> catálogo DTC, resto -> manual).
     #   - Recortar el extracto a la longitud configurada, añadiendo "..." solo
     #     si se ha cortado.
-    pass
+    fuentes = []
+    for f in fragmentos:
+        chunk_id = f["chunk_id"]
+
+        # "Manual.pdf_12" -> "Manual.pdf" y "12"
+        if "_" in chunk_id:
+            documento, numero = chunk_id.rsplit("_", 1)
+        else:
+            documento, numero = chunk_id, ""
+
+        # Categoría -> tipo de fuente
+        if f["categoria"] == "Dictionary":
+            tipo = "glossary"
+        elif f["categoria"] == "DTC":
+            tipo = "dtc_catalog"
+        else:
+            tipo = "manual"
+
+        # Extracto recortado; "..." solo si se ha cortado
+        texto = f["texto"]
+        limite = settings.source_excerpt_chars
+        extracto = texto[:limite] + "..." if len(texto) > limite else texto
+
+        fuentes.append({
+            "id": chunk_id,
+            "document": documento,
+            "source_type": tipo,
+            "section": f"Fragmento {numero}",
+            "engine_version": version,
+            "excerpt": extracto,
+        })
+    return fuentes
 
 
 # ---------------------------------------------------------------------------
@@ -171,6 +229,18 @@ def respuesta_sin_evidencia() -> dict:
     #     versión y que se debe escalar la incidencia.
     #   - Marcar evidence_status = "insufficient", sources = [] y
     #     documents_consulted = 0.
+    return {
+        "message":{
+            "id": str(uuid.uuid4()),
+            "role": "assistant",
+            "content": ("No hay información suficiente para responder a esta consulta. "
+                       "Se recomienda escalar la incidencia al equipo de soporte." 
+            ),
+        },
+        "evidence_status": "insufficient",
+        "sources": [],
+        "documents_consulted": 0
+    }
     pass
 
 
