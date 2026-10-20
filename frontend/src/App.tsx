@@ -77,7 +77,7 @@ export default function App() {
 
   return (
     <AppStoreContext.Provider value={store}>
-      <div className="flex h-screen bg-[#0a0a0b] text-gray-100 overflow-hidden">
+      <div className="flex h-screen bg-fondo text-texto-100 overflow-hidden">
         {/* Sidebar - desktop */}
         <div className="hidden lg:flex w-72 flex-shrink-0">
           <Sidebar onNavigate={() => setPage('chat')} />

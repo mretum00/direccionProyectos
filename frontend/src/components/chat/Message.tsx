@@ -8,10 +8,10 @@ import { EvidencePanel } from '@/components/sources/EvidencePanel';
 // evita crear un objeto `components` nuevo (y castear a any) en cada render.
 const MARKDOWN_CLASSES = [
   '[&_h3]:text-cyan-400 [&_h3]:font-bold [&_h3]:text-xs [&_h3]:tracking-wider [&_h3]:uppercase [&_h3]:mt-6 [&_h3]:mb-2',
-  '[&_p]:text-gray-300 [&_p]:leading-relaxed [&_p]:mb-3 [&_p]:text-sm md:[&_p]:text-base',
-  '[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-4 [&_ul]:text-gray-300 [&_ul]:space-y-1 [&_ul]:text-sm md:[&_ul]:text-base',
-  '[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-4 [&_ol]:text-gray-300 [&_ol]:space-y-1 [&_ol]:text-sm md:[&_ol]:text-base',
-  '[&_strong]:font-semibold [&_strong]:text-white',
+  '[&_p]:text-texto-300 [&_p]:leading-relaxed [&_p]:mb-3 [&_p]:text-sm md:[&_p]:text-base',
+  '[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:mb-4 [&_ul]:text-texto-300 [&_ul]:space-y-1 [&_ul]:text-sm md:[&_ul]:text-base',
+  '[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:mb-4 [&_ol]:text-texto-300 [&_ol]:space-y-1 [&_ol]:text-sm md:[&_ol]:text-base',
+  '[&_strong]:font-semibold [&_strong]:text-texto',
 ].join(' ');
 
 interface MessageProps {
@@ -24,7 +24,7 @@ function MessageComponent({ message }: MessageProps) {
       <div className="flex justify-end animate-in fade-in duration-300">
         <div className="flex items-start gap-2.5 max-w-[80%]">
           <div className="rounded-2xl rounded-tr-sm bg-cyan-500/15 border border-cyan-500/20 px-4 py-2.5">
-            <p className="text-sm text-gray-100 whitespace-pre-wrap">{message.content}</p>
+            <p className="text-sm text-texto-100 whitespace-pre-wrap">{message.content}</p>
           </div>
           <div className="w-8 h-8 rounded-full bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
             <User className="w-4 h-4 text-cyan-400" />

@@ -15,9 +15,9 @@ export function EvidencePanel({ sources }: EvidencePanelProps) {
     <div className="space-y-2">
       <div className="flex items-center gap-2 px-1">
         <BookOpen className="w-4 h-4 text-cyan-400" />
-        <h4 className="text-sm font-semibold text-gray-200">
+        <h4 className="text-sm font-semibold text-texto-200">
           Evidencia utilizada
-          <span className="text-gray-500 font-normal ml-1.5">({sources.length})</span>
+          <span className="text-texto-500 font-normal ml-1.5">({sources.length})</span>
         </h4>
       </div>
 

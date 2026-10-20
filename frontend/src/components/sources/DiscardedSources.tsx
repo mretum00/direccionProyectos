@@ -33,9 +33,9 @@ export function DiscardedSources({ sources }: DiscardedSourcesProps) {
           {sources.map((src, i) => (
             <div key={i} className="flex items-start gap-2 text-xs p-2 rounded-md bg-amber-500/5">
               <div className="min-w-0 flex-1">
-                <span className="text-gray-300">{src.document}</span>
+                <span className="text-texto-300">{src.document}</span>
                 <span className="text-amber-400/70 ml-1.5">· {REASON_LABELS[src.reason] ?? src.reason}</span>
-                {src.detail && <p className="text-gray-500 mt-0.5">{src.detail}</p>}
+                {src.detail && <p className="text-texto-500 mt-0.5">{src.detail}</p>}
               </div>
             </div>
           ))}

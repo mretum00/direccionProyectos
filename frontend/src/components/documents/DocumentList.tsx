@@ -54,9 +54,9 @@ export function DocumentList({ documents, loading, endpointAvailable }: Document
   if (!endpointAvailable) {
     return (
       <div className="text-center py-12">
-        <AlertCircle className="w-8 h-8 text-gray-600 mx-auto mb-3" />
-        <p className="text-sm text-gray-400">El endpoint de documentación no está disponible</p>
-        <p className="text-xs text-gray-600 mt-1">Cuando el backend lo soporte, los documentos aparecerán aquí</p>
+        <AlertCircle className="w-8 h-8 text-texto-600 mx-auto mb-3" />
+        <p className="text-sm text-texto-400">El endpoint de documentación no está disponible</p>
+        <p className="text-xs text-texto-600 mt-1">Cuando el backend lo soporte, los documentos aparecerán aquí</p>
       </div>
     );
   }
@@ -66,7 +66,7 @@ export function DocumentList({ documents, loading, endpointAvailable }: Document
       {config.enableDocumentUpload && (
         <div className="flex items-center gap-3">
           <label className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${
-            uploading ? 'bg-gray-500/10 text-gray-500' : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'
+            uploading ? 'bg-texto-500/10 text-texto-500' : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'
           }`}>
             {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
             {uploading ? 'Subiendo...' : 'Añadir documento'}
@@ -82,13 +82,13 @@ export function DocumentList({ documents, loading, endpointAvailable }: Document
           const statusConfig = STATUS_CONFIG[doc.status] ?? STATUS_CONFIG.pending;
           const Icon = typeConfig.icon;
           return (
-            <div key={doc.id} className="flex items-center gap-3 p-3 rounded-lg bg-[#151518] border border-white/5 hover:border-white/10 transition-colors">
-              <div className="w-9 h-9 rounded-md bg-white/5 flex items-center justify-center flex-shrink-0">
-                <Icon className="w-4 h-4 text-gray-400" />
+            <div key={doc.id} className="flex items-center gap-3 p-3 rounded-lg bg-tarjeta border border-contraste/5 hover:border-contraste/10 transition-colors">
+              <div className="w-9 h-9 rounded-md bg-contraste/5 flex items-center justify-center flex-shrink-0">
+                <Icon className="w-4 h-4 text-texto-400" />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-gray-200 truncate">{doc.filename}</div>
-                <div className="flex items-center gap-2 text-[10px] text-gray-500 mt-0.5">
+                <div className="text-sm font-medium text-texto-200 truncate">{doc.filename}</div>
+                <div className="flex items-center gap-2 text-[10px] text-texto-500 mt-0.5">
                   <span>{typeConfig.label}</span>
                   <span>· {doc.engine} {doc.engine_version}</span>
                   <span>· {doc.pages} pág.</span>
@@ -105,7 +105,7 @@ export function DocumentList({ documents, loading, endpointAvailable }: Document
 
       {documents.length === 0 && (
         <div className="text-center py-8">
-          <p className="text-sm text-gray-500">No hay documentos disponibles</p>
+          <p className="text-sm text-texto-500">No hay documentos disponibles</p>
         </div>
       )}
     </div>

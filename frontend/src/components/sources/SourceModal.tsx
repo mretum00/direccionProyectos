@@ -27,49 +27,49 @@ export function SourceModal({ source, onClose }: SourceModalProps) {
             <FileText className="w-5 h-5 text-cyan-400" />
           </div>
           <div className="min-w-0">
-            <h4 className="text-sm font-semibold text-white">{source.document}</h4>
-            <span className="text-xs text-gray-500">{TYPE_LABELS[source.source_type] ?? 'Documento'}</span>
+            <h4 className="text-sm font-semibold text-texto">{source.document}</h4>
+            <span className="text-xs text-texto-500">{TYPE_LABELS[source.source_type] ?? 'Documento'}</span>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 text-xs">
           {source.section && (
             <div>
-              <span className="text-gray-500">Sección</span>
-              <p className="text-gray-200">{source.section}</p>
+              <span className="text-texto-500">Sección</span>
+              <p className="text-texto-200">{source.section}</p>
             </div>
           )}
           {source.page !== undefined && (
             <div>
-              <span className="text-gray-500">Página</span>
-              <p className="text-gray-200">{source.page}</p>
+              <span className="text-texto-500">Página</span>
+              <p className="text-texto-200">{source.page}</p>
             </div>
           )}
           {source.engine && (
             <div>
-              <span className="text-gray-500">Motor</span>
-              <p className="text-gray-200">{source.engine}</p>
+              <span className="text-texto-500">Motor</span>
+              <p className="text-texto-200">{source.engine}</p>
             </div>
           )}
           {source.engine_version && (
             <div>
-              <span className="text-gray-500">Versión</span>
+              <span className="text-texto-500">Versión</span>
               <p className="text-cyan-400">{source.engine_version}</p>
             </div>
           )}
           {source.system && (
             <div>
-              <span className="text-gray-500">Sistema</span>
-              <p className="text-gray-200">{source.system}</p>
+              <span className="text-texto-500">Sistema</span>
+              <p className="text-texto-200">{source.system}</p>
             </div>
           )}
         </div>
 
         {source.excerpt && (
           <div>
-            <span className="text-xs text-gray-500">Fragmento</span>
-            <div className="mt-1.5 p-3 rounded-lg bg-[#0a0a0b] border border-white/5">
-              <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-wrap">{source.excerpt}</p>
+            <span className="text-xs text-texto-500">Fragmento</span>
+            <div className="mt-1.5 p-3 rounded-lg bg-fondo border border-contraste/5">
+              <p className="text-sm text-texto-300 leading-relaxed whitespace-pre-wrap">{source.excerpt}</p>
             </div>
           </div>
         )}

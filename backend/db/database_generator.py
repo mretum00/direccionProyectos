@@ -296,7 +296,8 @@ def ejecutar_ingesta():
                         vector = embedder.encode(
                             texto_chunk,
                             convert_to_numpy=True,
-                            show_progress_bar=False
+                            show_progress_bar=False,
+                            normalize_embeddings=True
                         )
 
                         vector_bytes = vector.astype(

@@ -25,26 +25,26 @@ export function ContextPanel({ conversation }: ContextPanelProps) {
   ];
 
   return (
-    <div className="w-64 flex-shrink-0 border-l border-white/5 bg-[#0d0d0f]/50 p-4 hidden xl:flex flex-col gap-4 overflow-y-auto">
-      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Contexto</h3>
+    <div className="w-64 flex-shrink-0 border-l border-contraste/5 bg-panel/50 p-4 hidden xl:flex flex-col gap-4 overflow-y-auto">
+      <h3 className="text-xs font-semibold text-texto-400 uppercase tracking-wider">Contexto</h3>
 
       <div className="space-y-3">
         {items.map(({ icon: Icon, label, value }) => (
           <div key={label} className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-md bg-white/5 flex items-center justify-center flex-shrink-0">
-              <Icon className="w-4 h-4 text-gray-400" />
+            <div className="w-8 h-8 rounded-md bg-contraste/5 flex items-center justify-center flex-shrink-0">
+              <Icon className="w-4 h-4 text-texto-400" />
             </div>
             <div className="min-w-0">
-              <div className="text-[10px] text-gray-500 uppercase tracking-wide">{label}</div>
-              <div className="text-xs text-gray-200 truncate">{value}</div>
+              <div className="text-[10px] text-texto-500 uppercase tracking-wide">{label}</div>
+              <div className="text-xs text-texto-200 truncate">{value}</div>
             </div>
           </div>
         ))}
       </div>
 
       {/* Evidence status */}
-      <div className="pt-3 border-t border-white/5">
-        <div className="text-[10px] text-gray-500 uppercase tracking-wide mb-2">Estado</div>
+      <div className="pt-3 border-t border-contraste/5">
+        <div className="text-[10px] text-texto-500 uppercase tracking-wide mb-2">Estado</div>
         {response?.evidence_status ? (
           <div className={`px-3 py-2 rounded-md text-xs font-medium ${
             response.evidence_status === 'high'
@@ -58,14 +58,14 @@ export function ContextPanel({ conversation }: ContextPanelProps) {
             {response.evidence_status === 'insufficient' && 'Evidencia insuficiente'}
           </div>
         ) : (
-          <div className="px-3 py-2 rounded-md text-xs text-gray-500 bg-white/5">
+          <div className="px-3 py-2 rounded-md text-xs text-texto-500 bg-contraste/5">
             Sin consulta aún
           </div>
         )}
       </div>
 
       {hasSources && (
-        <div className="pt-3 border-t border-white/5">
+        <div className="pt-3 border-t border-contraste/5">
           <div className="flex items-center gap-1.5 text-xs text-green-400">
             <FileCheck className="w-3.5 h-3.5" />
             <span>Consulta documentada ✓</span>

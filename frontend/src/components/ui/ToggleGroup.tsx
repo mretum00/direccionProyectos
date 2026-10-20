@@ -24,7 +24,7 @@ export function ToggleGroup<T extends string>({ options, value, onChange }: Togg
             className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
               selected
                 ? 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/30'
-                : 'bg-white/5 text-gray-300 border border-white/5 hover:bg-white/10'
+                : 'bg-contraste/5 text-texto-300 border border-contraste/5 hover:bg-contraste/10'
             }`}
           >
             {option.label}

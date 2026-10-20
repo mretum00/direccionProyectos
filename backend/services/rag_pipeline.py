@@ -4,7 +4,7 @@ Proceso de consulta RAG de ThermoDrive — esqueleto para repartir entre el equi
 Reparto (4 personas):
   Persona A (integrador)       -> 1. validar_consulta, 8. armar_respuesta, 10. pedir_aclaracion
   Persona B (prompts)          -> 2. traducir_consulta, 5. construir_prompt
-  Persona C (búsqueda vector.) -> 3. buscar_fragmentos, 4. cargar_indice
+  Persona C (búsqueda vector.) -> 3. buscar_fragmentos, 4. cargar_fragmentos
   Persona D (LLM y salida)     -> 6. generar_respuesta, 7. construir_fuentes, 9. respuesta_sin_evidencia
 
 Flujo completo (cada función es una tarea independiente):
@@ -12,7 +12,7 @@ Flujo completo (cada función es una tarea independiente):
   pregunta + versión
       -> 1. validar_consulta
       -> 2. traducir_consulta
-      -> 3. buscar_fragmentos        (usa 4. cargar_indice)
+      -> 3. buscar_fragmentos        (usa 4. cargar_fragmentos)
       -> 5. construir_prompt
       -> 6. generar_respuesta
       -> 7. construir_fuentes
@@ -38,13 +38,39 @@ Modelos del contrato de la API: models/schemas.py (ChatResponse, Source, ...).
 """
 
 from typing import Optional
+from sentence_transformers import SentenceTransformer
 import logging
 import uuid
 
 from click import prompt
 from config import settings
 
+import json
+import os
+import sqlite3
+import numpy as np
+
 logger = logging.getLogger(__name__)
+_modelo_embeddings = None
+
+# ---------------------------------------------------------------------------
+# FUNCIONES AUXILIARES
+# ---------------------------------------------------------------------------
+
+def _obtener_modelo():
+    """Carga el modelo de embeddings una sola vez."""
+    global _modelo_embeddings
+
+    if _modelo_embeddings is None:
+        _modelo_embeddings = SentenceTransformer(settings.embedding_model)
+
+    return _modelo_embeddings
+
+def _embedding_normalizado(texto: str) -> np.ndarray:
+    """Conventir texto a emnbedding."""
+    vector = _obtener_modelo().encode(texto, convert_to_numpy=True, show_progress_bar=False)
+    vector = vector.astype(np.float32)
+    return vector / (np.linalg.norm(vector) or 1.0)
 
 # ---------------------------------------------------------------------------
 # 1. Validar la consulta y la versión del motor           [Persona A]
@@ -79,33 +105,67 @@ def traducir_consulta(mensaje: str) -> str:
 # 3. Buscar los fragmentos más relevantes                 [Persona C]
 # ---------------------------------------------------------------------------
 def buscar_fragmentos(consulta_tecnica: str, version: str, top_k: int) -> list[dict]:
-    # Qué debe hacer:
-    #   - Generar el embedding de `consulta_tecnica`.
-    #   - Calcular la similitud coseno contra los fragmentos que NO sean del
-    #     glosario.
-    #   - Quedarse solo con los fragmentos cuya lista `applicable_versions`
-    #     incluya `version` (nunca devolver documentos de otra versión).
-    #   - Ordenar de mayor a menor similitud y devolver los `top_k` primeros
-    #     como dicts: {"chunk_id", "texto", "categoria", "score"}.
-    #   - Devolver lista vacía si no hay ninguno.
-    pass
+    fragmentos = cargar_fragmentos(str(settings.db_path))
+    # Generar el embedding de `consulta_tecnica`.
+    vector_pregunta = _embedding_normalizado(consulta_tecnica)
 
+    resultados = []
+
+    for f in fragmentos:
+        if f["categoria"] == "Dictionary":
+            continue                      # saltar el glosario
+        if version not in f["versiones"]:
+            continue                      # saltar otras versiones
+
+         # Calcular la similitud coseno contra los fragmentos que NO sean del glosario
+        score = float(np.dot(f["vector"], vector_pregunta))
+        resultados.append({
+            "chunk_id": f["chunk_id"],
+            "texto": f["texto"],
+            "categoria": f["categoria"],
+            "score": score,
+        })
+
+    # Ordenar de mayor a menor similitud y devolver los `top_k` primeros
+    resultados.sort(key=lambda r: r["score"], reverse=True)
+    return resultados[:top_k]
 
 # ---------------------------------------------------------------------------
 # 4. Cargar y mantener el índice vectorial en memoria     [Persona C]
 # ---------------------------------------------------------------------------
-def cargar_indice(ruta_bd: str) -> object:
-    # Qué debe hacer:
-    #   - Leer de SQLite la tabla `rag_documents` (chunk_id, text, category,
-    #     applicable_versions, embedding).
-    #   - Convertir los embeddings (bytes float32) en una matriz numpy
-    #     normalizada para buscar con un único producto matricial.
-    #   - Guardar las versiones aplicables de cada fragmento ya parseadas.
-    #   - Recargar automáticamente si el fichero de la BD ha cambiado.
-    #   - Lanzar un error claro si la BD no existe o la dimensión de los
-    #     embeddings no coincide con el modelo configurado.
-    pass
+def cargar_fragmentos(ruta_bd: str) -> object:
+    global _indice, _indice_mtime
+    # Leer de SQLite la tabla `rag_documents` (chunk_id, text, category, applicable_versions, embedding).
+    ruta_bd = ruta_bd
+    if not os.path.exists(ruta_bd):
+        raise FileNotFoundError(
+            f"No existe la base de datos en {ruta_bd}."
+        )
+    conn = sqlite3.connect(ruta_bd)
+    filas = conn.execute(
+        "SELECT chunk_id, text, category, applicable_versions, embedding FROM rag_documents"
+    ).fetchall()
+    conn.close()
 
+    dim_modelo = _obtener_modelo().get_sentence_embedding_dimension()
+
+    fragmentos = []
+    for chunk_id, texto, categoria, versiones_json, emb in filas:
+        # Los bytes de la BD se convierten en números (ya vienen normalizados)
+        vector = np.frombuffer(emb, dtype=np.float32)
+
+        if len(vector) != dim_modelo:
+            raise RuntimeError("La BD se generó con otro modelo de embeddings. Regenérala.")
+
+        fragmentos.append({
+            "chunk_id": chunk_id,
+            "texto": texto,
+            "categoria": categoria,
+            "versiones": json.loads(versiones_json),  # '["V1.0"]' -> ["V1.0"]
+            "vector": vector,
+        })
+
+    return fragmentos
 
 # ---------------------------------------------------------------------------
 # 5. Construir el prompt final para el LLM                [Persona B]

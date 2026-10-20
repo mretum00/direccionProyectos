@@ -153,7 +153,7 @@ Selector de versión + pregunta
 |---|---|
 | **A (integrador)** | `validar_consulta`, `armar_respuesta`, `pedir_aclaracion` |
 | **B (prompts)** | `traducir_consulta`, `construir_prompt` |
-| **C (búsqueda vectorial)** | `buscar_fragmentos`, `cargar_indice` |
+| **C (búsqueda vectorial)** | `buscar_fragmentos`, `cargar_fragmentos` |
 | **D (LLM y salida)** | `generar_respuesta`, `construir_fuentes`, `respuesta_sin_evidencia` |
 
 Dependencias: C y D pueden empezar ya; B necesita a C (glosario) y a D (LLM) para `traducir_consulta` y puede usar versiones falsas mientras tanto; A deja `armar_respuesta` para el final. El comportamiento esperado respecto a la versión del motor está en la sección 12 de [`docs/API_CONTRACT.md`](docs/API_CONTRACT.md).

@@ -18,12 +18,12 @@ export function ConfirmationModal({ open, title, message, confirmLabel = 'Confir
           <div className="w-10 h-10 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0">
             <AlertTriangle className="w-5 h-5 text-red-400" />
           </div>
-          <p className="text-sm text-gray-300 pt-1.5">{message}</p>
+          <p className="text-sm text-texto-300 pt-1.5">{message}</p>
         </div>
         <div className="flex justify-end gap-2">
           <button
             onClick={onCancel}
-            className="px-4 py-2 rounded-md text-sm text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+            className="px-4 py-2 rounded-md text-sm text-texto-400 hover:text-texto hover:bg-contraste/5 transition-colors"
           >
             Cancelar
           </button>

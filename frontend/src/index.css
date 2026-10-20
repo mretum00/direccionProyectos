@@ -2,12 +2,33 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Paleta de colores de la app. Cambiar un valor aquí cambia ese color en toda la app.
+ * Formato "R G B" (sin comas) para que Tailwind pueda aplicar opacidad: bg-contraste/5.
+ */
+:root {
+  --color-fondo: 10 10 11;        /* #0a0a0b  fondo principal */
+  --color-panel: 13 13 15;        /* #0d0d0f  barra lateral y cabecera */
+  --color-tarjeta: 21 21 24;      /* #151518  tarjetas y paneles */
+  --color-elevado: 26 26 29;      /* #1a1a1d  elementos elevados */
+  --color-contraste: 255 255 255; /* bordes, hovers y fondos sutiles (con opacidad) */
+
+  --color-texto: 255 255 255;     /* texto principal */
+  --color-texto-100: 243 244 246;
+  --color-texto-200: 229 231 235;
+  --color-texto-300: 209 213 219;
+  --color-texto-400: 156 163 175; /* texto secundario */
+  --color-texto-500: 107 114 128;
+  --color-texto-600: 75 85 99;
+  --color-texto-700: 55 65 81;    /* texto muy apagado */
+}
+
 @layer base {
   html {
     font-family: 'Inter', system-ui, -apple-system, sans-serif;
   }
   body {
-    background-color: #0a0a0b;
+    background-color: rgb(var(--color-fondo));
   }
 }
 
@@ -44,11 +65,11 @@
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgb(var(--color-contraste) / 0.1);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgb(var(--color-contraste) / 0.2);
 }
 
 /* Line clamp utility */

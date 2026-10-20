@@ -7,8 +7,8 @@ export function Logo() {
         <Cpu className="w-5 h-5 text-white" />
       </div>
       <div className="leading-tight">
-        <div className="text-sm font-bold tracking-wider text-white">ARSOFT AI</div>
-        <div className="text-[10px] text-gray-400 tracking-wide">Technical Vehicle Assistant</div>
+        <div className="text-sm font-bold tracking-wider text-texto">ARSOFT AI</div>
+        <div className="text-[10px] text-texto-400 tracking-wide">Technical Vehicle Assistant</div>
       </div>
     </div>
   );

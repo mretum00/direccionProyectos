@@ -37,8 +37,8 @@ export function DocumentsPage() {
             <FileText className="w-5 h-5 text-cyan-400" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-white">Documentación</h2>
-            <p className="text-xs text-gray-500">Documentos técnicos indexados en el sistema</p>
+            <h2 className="text-lg font-bold text-texto">Documentación</h2>
+            <p className="text-xs text-texto-500">Documentos técnicos indexados en el sistema</p>
           </div>
         </div>
 
@@ -47,7 +47,7 @@ export function DocumentsPage() {
             <AlertCircle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
             <div>
               <p className="text-sm text-amber-400 font-medium">Endpoint no disponible</p>
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-texto-400 mt-1">
                 El endpoint GET /api/documents aún no está implementado en el backend.
                 Cuando esté disponible, los documentos indexados aparecerán aquí.
               </p>
