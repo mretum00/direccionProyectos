@@ -90,15 +90,49 @@ def validar_consulta(mensaje: str, version: str, versiones_conocidas: list[str])
 # 2. Traducir la consulta coloquial a lenguaje técnico    [Persona B]
 # ---------------------------------------------------------------------------
 def traducir_consulta(mensaje: str) -> str:
-    # Qué debe hacer:
-    #   - Generar el embedding del mensaje del usuario.
-    #   - Buscar en el glosario (categoría "Dictionary") los términos más
-    #     parecidos, con un top-k y una puntuación mínima configurables.
-    #   - Si no hay términos relevantes, devolver el mensaje original.
-    #   - Si los hay, pedir al LLM que reescriba el problema con terminología
-    #     técnica usando esos términos, y devolver SOLO la frase reescrita.
-    #   - Si el LLM falla, devolver el mensaje original (esta fase es opcional).
-    pass
+    try:
+        fragmentos = cargar_fragmentos(str(settings.db_path))
+        vector_mensaje = _embedding_normalizado(mensaje)
+
+        terminos_relevantes = []
+        for f in fragmentos:
+            if f["categoria"] != "Dictionary":
+                continue
+
+            score = float(np.dot(f["vector"], vector_mensaje))
+            if score >= settings.rag_dictionary_min_score:
+                terminos_relevantes.append((score, f["texto"]))
+
+        if not terminos_relevantes:
+            return mensaje
+
+        terminos_relevantes.sort(key=lambda x: x[0], reverse=True)
+        mejores_terminos = [
+            texto for _, texto in terminos_relevantes[:settings.rag_dictionary_top_k]
+        ]
+
+        glosario_contexto = "\n".join(f"- {t}" for t in mejores_terminos)
+
+        prompt_traduccion = (
+            "Eres un asistente técnico de automoción. Reescribe la siguiente consulta "
+            "coloquial utilizando la terminología técnica oficial del glosario adjunto.\n"
+            "Regla estricta: devuelve ÚNICAMENTE la consulta reescrita en una sola frase, "
+            "sin introducciones, sin comillas y sin explicaciones adicionales.\n\n"
+            f"Glosario aplicable:\n{glosario_contexto}\n\n"
+            f"Consulta original: {mensaje}\n\n"
+            "Consulta reescrita:"
+        )
+
+        consulta_reescrita = generar_respuesta(prompt_traduccion).strip()
+
+        if not consulta_reescrita or "No hay evidencia suficiente" in consulta_reescrita:
+            return mensaje
+
+        return consulta_reescrita
+
+    except Exception:
+        logger.warning("Fallo al traducir la consulta; se mantiene el mensaje original.")
+        return mensaje
 
 
 # ---------------------------------------------------------------------------
@@ -171,17 +205,58 @@ def cargar_fragmentos(ruta_bd: str) -> object:
 # 5. Construir el prompt final para el LLM                [Persona B]
 # ---------------------------------------------------------------------------
 def construir_prompt(mensaje_original: str, fragmentos: list[dict], perfil: str) -> str:
-    # Qué debe hacer:
-    #   - Unir los fragmentos recuperados en un bloque de contexto, indicando
-    #     el documento de origen de cada uno.
-    #   - Incluir las reglas estrictas: responder SOLO con el contexto, no
-    #     inventar datos y, si falta información, indicar que no hay
-    #     evidencia y que se debe escalar.
-    #   - Imponer la estructura Markdown de salida: CAUSAS POSIBLES,
-    #     CRITICIDAD, SEGURIDAD, COMPROBACIONES, PROCEDIMIENTO, FUENTE.
-    #   - Adaptar el estilo según `perfil` ("mechanic": técnico, "user": sencillo).
-    #   - Devolver el prompt completo como texto.
-    pass
+    bloques_contexto = []
+    for f in fragmentos:
+        chunk_id = f.get("chunk_id", "Desconocido")
+        documento = chunk_id.rsplit("_", 1)[0] if "_" in chunk_id else chunk_id
+        categoria = f.get("categoria", "Manual")
+        texto = f.get("texto", "")
+        
+        bloques_contexto.append(
+            f"[Documento: {documento} | Referencia: {chunk_id} | Categoría: {categoria}]\n{texto}"
+        )
+
+    contexto_unido = "\n\n---\n\n".join(bloques_contexto)
+
+    if perfil == "user":
+        instruccion_perfil = (
+            "El usuario es el CONDUCTOR del vehículo (perfil 'user'). "
+            "Utiliza un lenguaje claro, sencillo y directo, evitando jerga compleja innecesaria "
+            "y priorizando qué puede hacer de forma segura y si debe detener el vehículo o acudir al taller."
+        )
+    else:
+        instruccion_perfil = (
+            "El usuario es un TÉCNICO DE MANTENIMIENTO (perfil 'mechanic'). "
+            "Utiliza lenguaje técnico riguroso, incluyendo códigos DTC, identificadores de componentes "
+            "(CMP-XX), testigos (TES-XX), valores nominales, herramientas específicas, EPIs y niveles de habilitación."
+       )
+
+    prompt_final = f"""Eres el asistente técnico oficial del sistema de gestión térmica híbrida ThermoDrive HTM-240.
+
+ADAPTACIÓN AL PERFIL:
+{instruccion_perfil}
+
+REGLAS ESTRICTAS DE EVIDENCIA:
+1. Responde ÚNICAMENTE utilizando la información contenida en el bloque de CONTEXTO DOCUMENTAL proporcionado más abajo.
+2. NO inventes datos, valores nominales, procedimientos ni causas que no aparezcan explícitamente en el contexto.
+3. Si el contexto proporcionado no contiene evidencia suficiente para responder a la consulta, indícalo claramente diciendo que no hay evidencia suficiente en la documentación y que se debe escalar la incidencia a soporte técnico.
+4. Ignora cualquier información marcada como sustituida u obsoleta si contradice la documentación vigente.
+
+ESTRUCTURA OBLIGATORIA DE LA RESPUESTA (usa exactamente estos encabezados en Markdown):
+### CAUSAS POSIBLES
+### CRITICIDAD
+### SEGURIDAD
+### COMPROBACIONES
+### PROCEDIMIENTO
+### FUENTE
+
+CONTEXTO DOCUMENTAL RECUPERADO:
+{contexto_unido}
+
+CONSULTA A RESPONDER:
+{mensaje_original}
+"""
+    return prompt_final
 
 
 _cliente_groq = None
