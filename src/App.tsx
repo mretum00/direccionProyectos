@@ -4,7 +4,6 @@ import type { EngineSelection } from '@/types/engine';
 import { AppStoreContext, type AppStore } from '@/store/appStore';
 import { ChatPage } from '@/pages/ChatPage';
 import { DocumentsPage } from '@/pages/DocumentsPage';
-import { SettingsPage } from '@/pages/SettingsPage';
 import { Header } from '@/components/ui/Header';
 import { Sidebar } from '@/components/conversations/ConversationSidebar';
 
@@ -16,7 +15,7 @@ const DEFAULT_SELECTION: EngineSelection = {
   vehicle: { brand: '', model: '', year: null, vin: '' },
 };
 
-export type Page = 'chat' | 'documents' | 'settings';
+export type Page = 'chat' | 'documents';
 
 export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -80,7 +79,6 @@ export default function App() {
           <div className="flex-1 overflow-hidden">
             {page === 'chat' && <ChatPage />}
             {page === 'documents' && <DocumentsPage />}
-            {page === 'settings' && <SettingsPage />}
           </div>
         </div>
       </div>
