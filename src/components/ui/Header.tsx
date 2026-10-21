@@ -1,7 +1,6 @@
-import { Menu, MessageSquare, FileText, Settings } from 'lucide-react';
+import { Menu, MessageSquare, FileText } from 'lucide-react';
 import type { Page } from '@/App';
 import { EngineSelector } from '@/components/engine/EngineSelector';
-import { ProfileSwitch } from '@/components/engine/ProfileSwitch';
 import { Logo } from './Logo';
 import { DemoBadge } from './DemoBadge';
 
@@ -15,7 +14,6 @@ export function Header({ page, onPageChange, onMenuClick }: HeaderProps) {
   const navItems: { id: Page; label: string; icon: typeof MessageSquare }[] = [
     { id: 'chat', label: 'Chat', icon: MessageSquare },
     { id: 'documents', label: 'Documentación', icon: FileText },
-    { id: 'settings', label: 'Ajustes', icon: Settings },
   ];
 
   return (
@@ -50,7 +48,6 @@ export function Header({ page, onPageChange, onMenuClick }: HeaderProps) {
       </nav>
 
       <div className="flex items-center gap-2 min-w-0">
-        <ProfileSwitch />
         <EngineSelector />
         <DemoBadge />
       </div>
