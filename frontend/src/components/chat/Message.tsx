@@ -14,6 +14,10 @@ const MARKDOWN_CLASSES = [
   '[&_strong]:font-semibold [&_strong]:text-texto',
 ].join(' ');
 
+// Sección "### FUENTE" escrita por el LLM (o guardada en conversaciones antiguas):
+// se oculta porque las fuentes se muestran como fichas debajo de la respuesta.
+const SECCION_FUENTE = /\n#{1,6}\s*FUENTES?\b[\s\S]*$/i;
+
 interface MessageProps {
   message: ChatMessage;
 }
@@ -35,6 +39,8 @@ function MessageComponent({ message }: MessageProps) {
   }
 
   const sources = message.response?.sources;
+  const hasSources = !!sources && sources.length > 0;
+  const content = hasSources ? message.content.replace(SECCION_FUENTE, '') : message.content;
 
   return (
     <div className="flex justify-start animate-in fade-in duration-300">
@@ -45,10 +51,10 @@ function MessageComponent({ message }: MessageProps) {
 
         <div className="flex-1 min-w-0 space-y-3 pt-1">
           <div className={`max-w-none ${MARKDOWN_CLASSES}`}>
-            <ReactMarkdown>{message.content}</ReactMarkdown>
+            <ReactMarkdown>{content}</ReactMarkdown>
           </div>
 
-          {sources && sources.length > 0 && <EvidencePanel sources={sources} />}
+          {hasSources && <EvidencePanel sources={sources} />}
         </div>
       </div>
     </div>

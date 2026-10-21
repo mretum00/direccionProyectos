@@ -32,7 +32,7 @@ docs/                     Contrato API
 ## Requisitos
 
 - **Node.js** (con npm) para el frontend.
-- **Python 3** para el backend.
+- **Python 3.10 o superior** para el backend.
 - Las dependencias de Python están en [`requirements.txt`](requirements.txt), **en la raíz del repositorio**.
 - Un archivo **`.env` en la raíz del repositorio** (ver siguiente sección).
 - Una clave de Groq (`GROQ_API_KEY`) para que el backend pueda generar respuestas.
@@ -98,11 +98,27 @@ Edita `.env` y pon tu `GROQ_API_KEY`.
 
 ### 1. Backend (API)
 
-Desde la raíz del repo, instala las dependencias:
+Desde la raíz del repo, crea un entorno virtual **en tu PC** (nunca lo copies de otra carpeta ni de otro ordenador: guarda rutas absolutas y deja de funcionar) e instala las dependencias:
 
 ```bash
-pip install -r requirements.txt
+python -m venv venv
 ```
+
+Actívalo (Windows PowerShell / Linux y macOS):
+
+```bash
+venv\Scripts\Activate.ps1
+```
+
+```bash
+source venv/bin/activate
+```
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Usa siempre `python -m pip` y `python -m uvicorn` en lugar de `pip` y `uvicorn` a secas: así se ejecuta seguro el Python del entorno activo.
 
 Si todavía no existe `thermodrive_rag.db`, genérala (una sola vez, o cuando cambien los manuales):
 
@@ -117,10 +133,15 @@ cd backend
 python main.py
 ```
 
-También puedes usar `uvicorn main:app --reload --port 8000` para recarga automática.
+También puedes usar `python -m uvicorn main:app --reload --port 8000` para recarga automática.
 
 - Salud: `http://localhost:<API_PORT>/api/health`
 - Docs automáticas de FastAPI: `http://localhost:<API_PORT>/docs`
+
+#### Problemas frecuentes
+
+- **`Fatal error in launcher: Unable to create process using ...python.exe`**: el `venv` se creó en otra carpeta y se ha movido o copiado. Bórralo y vuelve a crearlo con los pasos de arriba (en PowerShell: `Remove-Item -Recurse -Force venv`).
+- **`La BD se generó con otro modelo de embeddings`**: el `EMBEDDING_MODEL` del `.env` no es el que se usó para generar `thermodrive_rag.db`. Regenera la BD.
 
 ### 2. Frontend (interfaz)
 

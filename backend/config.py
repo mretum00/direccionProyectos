@@ -76,11 +76,16 @@ class Settings:
     groq_api_key: str | None
     llm_model: str
     llm_temperature: float
+    llm_max_tokens: int
+    llm_reasoning_effort: str
 
     # --- RAG ---
     rag_top_k: int
     rag_dictionary_top_k: int
     rag_dictionary_min_score: float
+    rag_evidence_min_score: float
+    rag_evidence_high_score: float
+    rag_code_match_bonus: float
     rag_chunk_size: int
     rag_chunk_overlap: int
     source_excerpt_chars: int
@@ -103,9 +108,18 @@ def load_settings() -> Settings:
         groq_api_key=os.getenv("GROQ_API_KEY") or None,
         llm_model=_get_str("LLM_MODEL", "openai/gpt-oss-20b"),
         llm_temperature=_get_float("LLM_TEMPERATURE", 0.1),
+        # Tokens máximos de la respuesta (incluye el razonamiento interno de gpt-oss).
+        llm_max_tokens=_get_int("LLM_MAX_TOKENS", 4096),
+        # low | medium | high para modelos que razonan (gpt-oss). Vacío = no se envía.
+        llm_reasoning_effort=os.getenv("LLM_REASONING_EFFORT", "low").strip(),
         rag_top_k=_get_int("RAG_TOP_K", 5),
         rag_dictionary_top_k=_get_int("RAG_DICTIONARY_TOP_K", 3),
         rag_dictionary_min_score=_get_float("RAG_DICTIONARY_MIN_SCORE", 0.3),
+        # Similitud del mejor fragmento: por debajo de MIN no se responde; desde HIGH la evidencia es alta.
+        rag_evidence_min_score=_get_float("RAG_EVIDENCE_MIN_SCORE", 0.3),
+        rag_evidence_high_score=_get_float("RAG_EVIDENCE_HIGH_SCORE", 0.5),
+        # Extra de puntuación para los fragmentos que contienen el código de avería exacto de la consulta.
+        rag_code_match_bonus=_get_float("RAG_CODE_MATCH_BONUS", 0.15),
         rag_chunk_size=_get_int("RAG_CHUNK_SIZE", 800),
         rag_chunk_overlap=_get_int("RAG_CHUNK_OVERLAP", 200),
         source_excerpt_chars=_get_int("SOURCE_EXCERPT_CHARS", 200),

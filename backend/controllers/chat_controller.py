@@ -19,6 +19,7 @@ def chat(request: ChatRequest):
             request.message,
             request.engine_version,
             request.profile.value,
+            [h.model_dump() for h in request.history],
         )
     except Exception as exc:
         logger.exception("Error en el pipeline RAG")

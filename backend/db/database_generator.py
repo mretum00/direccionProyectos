@@ -9,6 +9,7 @@ las variables de entorno definidas en backend/config.py, de modo que el modelo
 usado aquí es siempre el mismo que usa el backend al responder.
 """
 
+import bisect
 import json
 import os
 import re
@@ -34,6 +35,17 @@ MODEL_NAME = settings.embedding_model
 CHUNK_SIZE = settings.rag_chunk_size
 CHUNK_OVERLAP = settings.rag_chunk_overlap
 
+# Recopilatorio con todos los documentos juntos: duplica los fragmentos y,
+# como sus versiones no se pueden deducir por el nombre, rompe el filtro por versión.
+ARCHIVOS_EXCLUIDOS = {"HTM240_Documentacion_Completa_Alumnos.pdf"}
+
+# Primera línea de todas las páginas de los PDF: es ruido y se elimina.
+CABECERA_PAGINA = "ThermoDrive HTM-240 — Documentacion sintetica para uso educativo"
+
+# Cabecera de cada caso de servicio: "HTM-CASO-016 — 2025-10-11 (V1.0, 19900 km)".
+# Grupo 1 = código del caso, grupo 2 = versión del vehículo del caso.
+PATRON_CASO = re.compile(r"(HTM-CASO-\d{3}) — [^()]*\((V\d\.\d)")
+
 
 # ============================================================
 # CARGA DEL MODELO
@@ -52,13 +64,20 @@ def inicializar_bd():
 
     cursor = conn.cursor()
 
+    # Se regenera siempre desde cero: así no quedan fragmentos antiguos de
+    # documentos excluidos o con otro troceado, y las BD de versiones
+    # anteriores (sin las columnas page/section) se actualizan solas.
+    cursor.execute("DROP TABLE IF EXISTS rag_documents")
+
     cursor.execute("""
-        CREATE TABLE IF NOT EXISTS rag_documents (
+        CREATE TABLE rag_documents (
             chunk_id TEXT PRIMARY KEY,
             text TEXT,
             category TEXT,
             applicable_versions TEXT,
-            embedding BLOB
+            embedding BLOB,
+            page INTEGER,
+            section TEXT
         )
     """)
 
@@ -71,30 +90,39 @@ def inicializar_bd():
 # EXTRACCIÓN DE TEXTO
 # ============================================================
 
-def extraer_texto_pdf(ruta_pdf):
+def extraer_paginas_pdf(ruta_pdf):
+    """Devuelve el texto de cada página por separado (sin cabecera ni número de página)."""
     paginas = []
 
     try:
         with pymupdf.open(ruta_pdf) as documento:
             for pagina in documento:
-                paginas.append(pagina.get_text("text"))
+                lineas = pagina.get_text("text").strip().split("\n")
+
+                if lineas and lineas[0].strip() == CABECERA_PAGINA:
+                    lineas = lineas[1:]
+                if lineas and lineas[-1].strip().isdigit():
+                    lineas = lineas[:-1]
+
+                paginas.append("\n".join(lineas))
 
     except Exception as e:
         print(f"[!] Error al procesar el PDF {ruta_pdf}: {e}")
 
-    return "\n".join(paginas)
+    return paginas
 
 
-def extraer_texto_archivo(ruta_completa):
+def extraer_paginas_archivo(ruta_completa):
+    """Lista con el texto de cada página. Un .txt/.md cuenta como una sola página."""
     extension = os.path.splitext(ruta_completa)[1].lower()
 
     if extension == ".pdf":
-        return extraer_texto_pdf(ruta_completa)
+        return extraer_paginas_pdf(ruta_completa)
 
     if extension in (".txt", ".md"):
         try:
             with open(ruta_completa, "r", encoding="utf-8") as archivo:
-                return archivo.read()
+                return [archivo.read()]
 
         except UnicodeDecodeError:
             print(f"[!] Error de codificación en {ruta_completa}")
@@ -102,7 +130,31 @@ def extraer_texto_archivo(ruta_completa):
         except OSError as e:
             print(f"[!] Error leyendo {ruta_completa}: {e}")
 
-    return ""
+    return []
+
+
+def unir_paginas(paginas):
+    """Junta las páginas en un solo texto limpio y recuerda dónde empieza cada una.
+
+    Devuelve (texto, inicios), donde inicios[i] es la posición del texto en la
+    que empieza la página i+1. Sirve para saber de qué página sale cada fragmento.
+    """
+    partes = []
+    inicios = []
+    posicion = 0
+
+    for pagina in paginas:
+        limpio = re.sub(r"\s+", " ", pagina).strip()
+        inicios.append(posicion)
+        partes.append(limpio)
+        posicion += len(limpio) + 1   # +1 por el espacio que las separa
+
+    return " ".join(partes), inicios
+
+
+def pagina_de(posicion, inicios):
+    """Número de página (empezando en 1) en la que cae una posición del texto."""
+    return bisect.bisect_right(inicios, posicion)
 
 
 # ============================================================
@@ -205,7 +257,8 @@ def procesar_documento_tecnico(
         if len(fragmento) > 20:
             yield {
                 "id": f"{id_archivo}_{indice}",
-                "texto": fragmento
+                "texto": fragmento,
+                "inicio": inicio,   # para calcular la página
             }
 
             indice += 1
@@ -222,6 +275,36 @@ def procesar_documento_tecnico(
             nuevo_inicio = fin
 
         inicio = nuevo_inicio
+
+
+def procesar_casos_servicio(texto_limpio, id_archivo):
+    """Un fragmento por caso de servicio, con su código y la versión de su vehículo.
+
+    Los casos de distintas versiones están mezclados en el mismo PDF: trocear
+    cada 800 caracteres juntaba casos V1.0 y V2.0 en un mismo fragmento y el
+    filtro por versión dejaba pasar casos de otra versión.
+    """
+    cabeceras = list(PATRON_CASO.finditer(texto_limpio))
+
+    if not cabeceras:
+        yield from procesar_documento_tecnico(texto_limpio, id_archivo)
+        return
+
+    # Introducción del documento (antes del primer caso): troceado normal.
+    yield from procesar_documento_tecnico(texto_limpio[:cabeceras[0].start()], id_archivo)
+
+    for i, cabecera in enumerate(cabeceras):
+        inicio = cabecera.start()
+        fin = cabeceras[i + 1].start() if i + 1 < len(cabeceras) else len(texto_limpio)
+        codigo, version = cabecera.group(1), cabecera.group(2)
+
+        yield {
+            "id": f"{id_archivo}_{codigo}",
+            "texto": texto_limpio[inicio:fin].strip(),
+            "inicio": inicio,
+            "seccion": codigo,
+            "versiones": [version],
+        }
 
 
 # ============================================================
@@ -261,26 +344,34 @@ def ejecutar_ingesta():
                 ):
                     continue
 
+                # Ignorar el recopilatorio completo.
+                if archivo in ARCHIVOS_EXCLUIDOS:
+                    continue
+
                 ruta_completa = os.path.join(raiz, archivo)
 
                 print(f"\nProcesando: {archivo}")
 
                 try:
-                    texto_extraido = extraer_texto_archivo(
-                        ruta_completa
-                    )
+                    paginas = extraer_paginas_archivo(ruta_completa)
+                    texto_limpio, inicios_pagina = unir_paginas(paginas)
 
-                    if not texto_extraido.strip():
+                    if not texto_limpio:
                         print("[!] El documento no contiene texto.")
                         continue
 
                     if categoria == "Dictionary":
+                        # El diccionario se separa por viñetas, que necesitan los saltos de línea.
                         chunks = procesar_diccionario(
-                            texto_extraido, archivo
+                            "\n".join(paginas), archivo
+                        )
+                    elif archivo.startswith("HTM240-HIS-"):
+                        chunks = procesar_casos_servicio(
+                            texto_limpio, archivo
                         )
                     else:
                         chunks = procesar_documento_tecnico(
-                            texto_extraido, archivo
+                            texto_limpio, archivo
                         )
 
                     fragmentos_insertados = 0
@@ -304,9 +395,18 @@ def ejecutar_ingesta():
                             np.float32
                         ).tobytes()
 
-                        versiones = determinar_versiones(
-                            texto_chunk, chunk["id"]
-                        )
+                        # Los casos de servicio traen su propia versión; el resto se deduce.
+                        if "versiones" in chunk:
+                            versiones = json.dumps(chunk["versiones"])
+                        else:
+                            versiones = determinar_versiones(
+                                texto_chunk, chunk["id"]
+                            )
+
+                        # Página en la que empieza el fragmento (el diccionario no la tiene).
+                        pagina = None
+                        if "inicio" in chunk:
+                            pagina = pagina_de(chunk["inicio"], inicios_pagina)
 
                         cursor.execute("""
                             INSERT OR REPLACE INTO rag_documents
@@ -315,15 +415,19 @@ def ejecutar_ingesta():
                                 text,
                                 category,
                                 applicable_versions,
-                                embedding
+                                embedding,
+                                page,
+                                section
                             )
-                            VALUES (?, ?, ?, ?, ?)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
                         """, (
                             chunk["id"],
                             texto_chunk,
                             categoria,
                             versiones,
-                            vector_bytes
+                            vector_bytes,
+                            pagina,
+                            chunk.get("seccion")
                         ))
 
                         fragmentos_insertados += 1
