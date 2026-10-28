@@ -21,3 +21,10 @@ dist-ssr
 *.sln
 *.sw?
 .env
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Base de datos de conversaciones generada por el backend
+conversations.db
