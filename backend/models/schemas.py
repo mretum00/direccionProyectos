@@ -1,7 +1,7 @@
 """Modelos Pydantic del contrato API (v1.0.0). La lógica de negocio irá en los controladores."""
 
 from enum import Enum
-from typing import List, Optional
+from typing import List, Literal, Optional, Union
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -74,9 +74,10 @@ class ChatRequest(BaseModel):
     conversation_id: str = ""
     message: str
     engine: str = ""
-    engine_version: str = ""
+    # Versión y perfil son obligatorios: sin ellos la petición se rechaza (422).
+    engine_version: str
     system: Optional[str] = None
-    profile: Profile = Profile.mechanic
+    profile: Profile
     history: List[HistoryItem] = Field(default_factory=list)
     vehicle: VehicleInfo = Field(default_factory=VehicleInfo)
 
@@ -88,10 +89,18 @@ class ChatRequest(BaseModel):
             raise ValueError("El mensaje no puede estar vacío")
         return value
 
-    @field_validator("engine", "engine_version")
+    @field_validator("engine")
     @classmethod
     def _strip(cls, value: str) -> str:
         return value.strip()
+
+    @field_validator("engine_version")
+    @classmethod
+    def _version_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("La versión del motor es obligatoria")
+        return value
 
 
 class MessageResponse(BaseModel):
@@ -103,17 +112,6 @@ class MessageResponse(BaseModel):
 class SafetyItem(BaseModel):
     level: SafetyLevel
     text: str
-
-
-class ClarificationField(BaseModel):
-    key: str
-    label: str
-    options: Optional[List[str]] = None
-
-
-class Clarification(BaseModel):
-    message: str = ""
-    missing_fields: List[ClarificationField] = Field(default_factory=list)
 
 
 class InterpretedQuery(BaseModel):
@@ -159,13 +157,11 @@ class DiscardedSource(BaseModel):
 class ChatResponse(BaseModel):
     message: MessageResponse
     evidence_status: Optional[EvidenceStatus] = None
-    needs_clarification: Optional[bool] = False
     confidence: Optional[float] = None
     documents_consulted: Optional[int] = None
     interpreted_query: Optional[InterpretedQuery] = None
     detected_dtc: Optional[List[DetectedDTC]] = None
     sections: Optional[ResponseSections] = None
-    clarification: Optional[Clarification] = None
     sources: Optional[List[Source]] = None
     discarded_sources: Optional[List[DiscardedSource]] = None
 
@@ -202,5 +198,6 @@ class Conversation(BaseModel):
     engine: str = ""
     engine_version: str = ""
     system: Optional[str] = None
-    profile: Profile = Profile.mechanic
+    # Vacío mientras el usuario no haya elegido perfil (conversación recién creada).
+    profile: Union[Profile, Literal[""]] = ""
     messages: List[ConversationMessage] = Field(default_factory=list)

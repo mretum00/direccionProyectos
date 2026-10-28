@@ -1,14 +1,15 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { config } from '@/config';
 import { api } from '@/services/api';
 import { conversationRepository } from '@/services/conversationRepository';
 import { useAppStore, type AppStore } from '@/store/appStore';
 import type { ChatMessage } from '@/types/chat';
 import type { Conversation } from '@/types/conversation';
+import { isComplete, PROFILES, ENGINES, type CompleteSelection } from '@/types/engine';
 import { buildConversation } from '@/utils/conversation';
 import { uuid } from '@/utils/uuid';
 
-export type ChatError = { type: 'network' | 'server' | 'cancelled'; message: string } | null;
+export type ChatError = { type: 'network' | 'server' | 'cancelled' | 'selection'; message: string } | null;
 
 function findActive(store: AppStore): Conversation | null {
   if (!store.activeConversationId) return null;
@@ -29,17 +30,20 @@ export function useChat() {
   const [error, setError] = useState<ChatError>(null);
   const inFlight = useRef<AbortController | null>(null);
 
-  /**
-   * Envía la pregunta del usuario junto con el motor/versión actualmente
-   * seleccionados. `baseConversation` permite reenviar partiendo de un estado
-   * distinto al del store (lo usa `retry`, cuyo upsert aún no se ha renderizado).
-   */
-  const sendMessage = useCallback(async (rawText: string, baseConversation?: Conversation) => {
-    const text = rawText.trim();
-    if (!text || inFlight.current) return;
+  // Al cambiar de chat (o crear uno nuevo) se descarta el aviso del chat anterior.
+  const activeConversationId = store.activeConversationId;
+  useEffect(() => {
+    setError(null);
+  }, [activeConversationId]);
 
+  // El aviso de selección desaparece en cuanto el usuario elige la versión y el perfil.
+  const selectionComplete = isComplete(store.engineSelection);
+  useEffect(() => {
+    if (selectionComplete) setError((e) => (e?.type === 'selection' ? null : e));
+  }, [selectionComplete]);
+
+  const performSend = useCallback(async (text: string, selection: CompleteSelection, baseConversation?: Conversation) => {
     const current = storeRef.current;
-    const selection = current.engineSelection;
     const conversation = baseConversation ?? findActive(current) ?? buildConversation(selection);
 
     const now = new Date().toISOString();
@@ -111,6 +115,43 @@ export function useChat() {
       }
     }
   }, []);
+
+  /**
+   * Envía la pregunta del usuario junto con el motor, la versión y el perfil
+   * actualmente seleccionados. Sin versión o sin perfil no se envía nada: se
+   * muestra un error que indica qué falta y qué opciones hay. Devuelve `true` si la consulta salió, para que el input
+   * sepa si debe vaciarse. `baseConversation` permite reenviar partiendo de un
+   * estado distinto al del store (lo usa `retry`, cuyo upsert aún no se ha renderizado).
+   */
+  const sendMessage = useCallback(
+    (rawText: string, baseConversation?: Conversation): boolean => {
+      const text = rawText.trim();
+      if (!text || inFlight.current) return false;
+
+      const selection = storeRef.current.engineSelection;
+      if (!isComplete(selection)) {
+        const faltan: string[] = [];
+        if (!selection.engine_version) {
+          const versions = ENGINES.find((e) => e.name === selection.engine)?.versions ?? [];
+          const options = versions.map((v) => v.label).join(', ');
+          faltan.push(`la versión del motor${options ? ` (${options})` : ''}`);
+        }
+        if (!selection.profile) {
+          faltan.push(`el perfil de respuesta (${PROFILES.map((p) => p.label).join(' o ')})`);
+        }
+        storeRef.current.requestSelection();
+        setError({
+          type: 'selection',
+          message: `Falta elegir ${faltan.join(' y ')}. Complétalo en el selector de arriba a la derecha.`,
+        });
+        return false;
+      }
+
+      void performSend(text, selection, baseConversation);
+      return true;
+    },
+    [performSend],
+  );
 
   /** Reenvía la última pregunta del usuario sin duplicarla en la conversación. */
   const retry = useCallback(() => {

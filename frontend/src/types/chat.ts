@@ -47,17 +47,6 @@ export interface SafetyItem {
   text: string;
 }
 
-export interface ClarificationMissingField {
-  key: string;
-  label: string;
-  options?: string[];
-}
-
-export interface Clarification {
-  message?: string;
-  missing_fields: ClarificationMissingField[];
-}
-
 export interface InterpretedQuery {
   original: string;
   technical_terms: string[];
@@ -101,13 +90,11 @@ export interface DiscardedSource {
 export interface AssistantResponse {
   message: { id: string; role: 'assistant'; content: string };
   evidence_status?: EvidenceStatus;
-  needs_clarification?: boolean;
   confidence?: number;
   documents_consulted?: number;
   interpreted_query?: InterpretedQuery;
   detected_dtc?: DetectedDTC[];
   sections?: ResponseSections;
-  clarification?: Clarification;
   sources?: Source[];
   discarded_sources?: DiscardedSource[];
 }

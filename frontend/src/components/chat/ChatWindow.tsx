@@ -40,7 +40,7 @@ export function ChatWindow() {
 
             {loading && <ThinkingIndicator />}
 
-            {error && <ChatError message={error.message} onRetry={retry} />}
+            {error && <ChatError message={error.message} onRetry={error.type === 'selection' ? undefined : retry} />}
           </div>
         </div>
         <MessageInput loading={loading} onSend={sendMessage} onCancel={cancel} />

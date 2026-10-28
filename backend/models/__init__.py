@@ -1,1 +1,1 @@
-from .schemas import *  # noqa: F403
+"""Esquemas Pydantic del contrato de la API (ver schemas.py)."""

@@ -6,5 +6,4 @@ numpy
 PyMuPDF
 sentence-transformers
 python-dotenv
-python-multipart
 groq

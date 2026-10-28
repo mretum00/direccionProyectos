@@ -19,8 +19,6 @@ export const config = {
   enableDocumentUpload: flag(env.VITE_ENABLE_DOCUMENT_UPLOAD),
   /** Motor preseleccionado (debe existir en ENGINES). Vacío = primero de la lista. */
   defaultEngine: (env.VITE_DEFAULT_ENGINE ?? '').trim(),
-  /** Versión preseleccionada (debe existir para ese motor). Vacío = sin seleccionar. */
-  defaultEngineVersion: (env.VITE_DEFAULT_ENGINE_VERSION ?? '').trim(),
   /** El contrato de la API fija en 6 los mensajes previos que viajan en `history`. */
   chatHistoryLimit: 6,
 } as const;

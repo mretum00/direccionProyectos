@@ -12,6 +12,7 @@ Con recarga automática en desarrollo:
 """
 
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,10 +25,24 @@ from controllers import (
     health_router,
     sources_router,
 )
+from services import rag_pipeline
 
 logging.basicConfig(level=settings.log_level, format="%(asctime)s - %(levelname)s - %(message)s")
 
-app = FastAPI(title="ARSOFT AI Backend", version=APP_VERSION)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # Carga el modelo de embeddings y la BD ahora para que la primera consulta no espere.
+    try:
+        rag_pipeline.precalentar()
+    except Exception:
+        logger.warning("No se pudo precalentar el RAG; se cargará en la primera consulta.", exc_info=True)
+    yield
+
+
+app = FastAPI(title="ARSOFT AI Backend", version=APP_VERSION, lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

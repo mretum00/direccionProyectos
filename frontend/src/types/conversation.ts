@@ -9,6 +9,6 @@ export interface Conversation {
   engine: string;
   engine_version: string;
   system: EngineSystem;
-  profile: Profile;
+  profile: Profile | '';
   messages: ChatMessage[];
 }

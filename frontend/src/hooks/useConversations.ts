@@ -9,7 +9,10 @@ import { uuid } from '@/utils/uuid';
 export function useConversations() {
   const store = useAppStore();
   const createConversation = useCallback((): Conversation => {
-    const conv = buildConversation(store.engineSelection);
+    // Cada chat nuevo empieza sin versión ni perfil: hay que elegirlos otra vez.
+    const selection = { ...store.engineSelection, engine_version: '', profile: '' as const };
+    store.setEngineSelection(selection);
+    const conv = buildConversation(selection);
     store.upsertConversation(conv);
     store.setActiveConversationId(conv.id);
     conversationRepository.save(conv).catch(() => {});

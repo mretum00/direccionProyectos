@@ -20,11 +20,11 @@ export function Sidebar({ onNavigate }: SidebarProps) {
 
   return (
     <div className="flex flex-col w-full h-full bg-panel border-r border-contraste/5">
-      <div className="p-4 flex-shrink-0">
+      <div className="px-4 h-14 flex items-center flex-shrink-0">
         <Logo />
       </div>
 
-      <div className="px-3 pb-3 flex gap-2 flex-shrink-0">
+      <div className="px-3 pt-2 pb-3 flex gap-2 flex-shrink-0">
         <button
           onClick={() => {
             createConversation();

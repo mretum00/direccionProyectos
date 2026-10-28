@@ -1,7 +1,7 @@
 import { Menu, MessageSquare, FileText } from 'lucide-react';
 import type { Page } from '@/App';
-import { EngineSelector } from '@/components/engine/EngineSelector';
 import { Logo } from './Logo';
+import { EngineSelector } from '@/components/engine/EngineSelector';
 
 interface HeaderProps {
   page: Page;
@@ -17,7 +17,7 @@ export function Header({ page, onPageChange, onMenuClick }: HeaderProps) {
 
   return (
     <header className="flex items-center justify-between gap-3 px-4 h-14 border-b border-contraste/5 bg-panel/80 backdrop-blur-sm flex-shrink-0">
-      <div className="flex items-center gap-3 min-w-0">
+      <div className="flex flex-1 items-center gap-3 min-w-0">
         <button
           onClick={onMenuClick}
           className="lg:hidden p-1.5 rounded-md hover:bg-contraste/5 text-texto-400"
@@ -46,7 +46,8 @@ export function Header({ page, onPageChange, onMenuClick }: HeaderProps) {
         ))}
       </nav>
 
-      <div className="flex items-center gap-2 min-w-0">
+      {/* flex-1 a ambos lados del logo para que las pestañas queden centradas. */}
+      <div className="flex flex-1 items-center justify-end gap-2 min-w-0">
         <EngineSelector />
       </div>
     </header>

@@ -1,24 +1,30 @@
 import { useState, useRef, useEffect } from 'react';
-import { Settings2, ChevronDown, AlertTriangle, Car } from 'lucide-react';
+import { Settings2, ChevronDown, AlertTriangle } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { ToggleGroup } from '@/components/ui/ToggleGroup';
-import { ENGINES, PROFILES, SYSTEMS, type EngineSelection, type EngineSystem, type VehicleInfo } from '@/types/engine';
+import { ENGINES, PROFILES, type EngineSelection } from '@/types/engine';
 
-const INPUT_CLASS =
-  'bg-fondo border border-contraste/10 rounded-md px-2.5 py-1.5 text-xs text-texto outline-none focus:border-cyan-500/50';
 const SELECT_CLASS =
   'w-full bg-fondo border border-contraste/10 rounded-md px-3 py-2 text-sm text-texto outline-none focus:border-cyan-500/50';
 
-const VEHICLE_TEXT_FIELDS: { key: 'brand' | 'model' | 'vin'; placeholder: string }[] = [
-  { key: 'brand', placeholder: 'Marca' },
-  { key: 'model', placeholder: 'Modelo' },
-  { key: 'vin', placeholder: 'VIN' },
-];
-
+/**
+ * Motor, versión y perfil con los que se envía la consulta. La versión y el perfil
+ * hay que elegirlos siempre; el panel se abre solo si se intenta enviar sin ellos.
+ */
 export function EngineSelector() {
-  const { engineSelection: sel, setEngineSelection } = useAppStore();
+  const { engineSelection: sel, setEngineSelection, selectionRequest } = useAppStore();
   const [open, setOpen] = useState(false);
+  // Resalta el botón tras un intento de envío incompleto, hasta que se complete la selección.
+  const [flagged, setFlagged] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Un intento de envío incompleto abre el panel para que se elija ahí mismo.
+  useEffect(() => {
+    if (selectionRequest > 0) {
+      setOpen(true);
+      setFlagged(true);
+    }
+  }, [selectionRequest]);
 
   // El listener global solo existe mientras el panel está abierto.
   useEffect(() => {
@@ -31,28 +37,56 @@ export function EngineSelector() {
   }, [open]);
 
   const update = (patch: Partial<EngineSelection>) => setEngineSelection({ ...sel, ...patch });
-  const updateVehicle = (patch: Partial<VehicleInfo>) => update({ vehicle: { ...sel.vehicle, ...patch } });
 
   const versions = ENGINES.find((e) => e.name === sel.engine)?.versions ?? [];
-  const versionWarning = !sel.engine_version;
+  const versionMissing = !sel.engine_version;
+  const profileMissing = !sel.profile;
+  const incomplete = versionMissing || profileMissing;
+  const highlight = incomplete && flagged;
+
+  // Al completar la selección se quita el resaltado: en un chat nuevo empieza limpio.
+  useEffect(() => {
+    if (!incomplete) setFlagged(false);
+  }, [incomplete]);
+  const missingLabel =
+    versionMissing && profileMissing ? 'Elegir versión y perfil' : versionMissing ? 'Elegir versión' : 'Elegir perfil';
+  const profileLabel = PROFILES.find((p) => p.value === sel.profile)?.label;
 
   return (
     <div ref={ref} className="relative">
       <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-contraste/5 hover:bg-contraste/10 border border-contraste/5 text-xs transition-colors"
+        title="Motor, versión y perfil de la consulta"
+        className={`flex items-center gap-2 h-8 pl-2.5 pr-2 rounded-full border text-xs transition-all ${
+          incomplete
+            ? `border-dashed border-amber-500/50 bg-amber-500/10 hover:bg-amber-500/15 ${highlight ? 'ring-2 ring-amber-500/30' : ''}`
+            : 'border-contraste/10 bg-contraste/[0.03] hover:bg-contraste/[0.07]'
+        }`}
       >
-        <Settings2 className="w-3.5 h-3.5 text-cyan-400" />
-        <span className="hidden md:inline text-texto-200">
-          {sel.engine}
-          {sel.engine_version && <span className="text-texto-400"> · {sel.engine_version}</span>}
-        </span>
-        {sel.system && <span className="hidden lg:inline text-cyan-400"> · {sel.system}</span>}
-        <ChevronDown className="w-3.5 h-3.5 text-texto-500" />
+        {incomplete ? (
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
+        ) : (
+          <Settings2 className="w-3.5 h-3.5 text-texto-400 flex-shrink-0" />
+        )}
+        <span className="hidden lg:inline text-texto-200 font-medium truncate">{sel.engine}</span>
+        {incomplete ? (
+          <span className="px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 font-semibold whitespace-nowrap">
+            {missingLabel}
+          </span>
+        ) : (
+          <>
+            <span className="px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 font-semibold">
+              {sel.engine_version}
+            </span>
+            <span className="hidden sm:inline text-texto-300 font-medium">{profileLabel}</span>
+          </>
+        )}
+        <ChevronDown className={`w-3.5 h-3.5 text-texto-500 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-80 bg-tarjeta border border-contraste/10 rounded-xl shadow-2xl z-50 p-4 space-y-4">
+        <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-tarjeta border border-contraste/10 rounded-xl shadow-2xl z-50 p-4 space-y-4">
           <div>
             <label className="block text-[11px] font-medium text-texto-400 mb-1.5">Motor</label>
             <select
@@ -77,7 +111,7 @@ export function EngineSelector() {
               value={sel.engine_version}
               onChange={(engine_version) => update({ engine_version })}
             />
-            {versionWarning && (
+            {versionMissing && (
               <p className="flex items-center gap-1.5 mt-2 text-[11px] text-amber-400">
                 <AlertTriangle className="w-3 h-3" />
                 Selecciona la versión para obtener respuestas
@@ -86,54 +120,22 @@ export function EngineSelector() {
           </div>
 
           <div>
-            <label className="block text-[11px] font-medium text-texto-400 mb-1.5">Sistema</label>
-            <select
-              value={sel.system ?? ''}
-              onChange={(e) => update({ system: (e.target.value || null) as EngineSystem })}
-              className={SELECT_CLASS}
-            >
-              {SYSTEMS.map((s) => (
-                <option key={s.label} value={s.value ?? ''}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-
-          <div>
             <label className="block text-[11px] font-medium text-texto-400 mb-1.5">Perfil de respuesta</label>
             <ToggleGroup options={PROFILES} value={sel.profile} onChange={(profile) => update({ profile })} />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-medium text-texto-400 mb-1.5">
-              <span className="flex items-center gap-1"><Car className="w-3 h-3" /> Datos del vehículo (opcional)</span>
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {VEHICLE_TEXT_FIELDS.slice(0, 2).map(({ key, placeholder }) => (
-                <input
-                  key={key}
-                  placeholder={placeholder}
-                  value={sel.vehicle[key]}
-                  onChange={(e) => updateVehicle({ [key]: e.target.value })}
-                  className={INPUT_CLASS}
-                />
-              ))}
-              <input
-                type="number"
-                placeholder="Año"
-                value={sel.vehicle.year ?? ''}
-                onChange={(e) => updateVehicle({ year: e.target.value ? parseInt(e.target.value, 10) : null })}
-                className={INPUT_CLASS}
-              />
-              <input
-                placeholder={VEHICLE_TEXT_FIELDS[2].placeholder}
-                value={sel.vehicle.vin}
-                onChange={(e) => updateVehicle({ vin: e.target.value })}
-                className={INPUT_CLASS}
-              />
-            </div>
+            {profileMissing ? (
+              <p className="flex items-center gap-1.5 mt-2 text-[11px] text-amber-400">
+                <AlertTriangle className="w-3 h-3" />
+                Selecciona el perfil para obtener respuestas
+              </p>
+            ) : (
+              <p className="mt-2 text-[11px] text-texto-500">
+                {sel.profile === 'user' ? 'Lenguaje sencillo, pensado para el conductor.' : 'Lenguaje técnico, pensado para el taller.'}
+              </p>
+            )}
           </div>
 
           <button
+            type="button"
             onClick={() => setOpen(false)}
             className="w-full py-2 rounded-md bg-cyan-500/10 text-cyan-400 text-sm font-medium hover:bg-cyan-500/20 transition-colors"
           >

@@ -10,15 +10,14 @@ import { DocumentsPage } from '@/pages/DocumentsPage';
 import { Header } from '@/components/ui/Header';
 import { Sidebar } from '@/components/conversations/ConversationSidebar';
 
-/** Motor y versión iniciales: vienen del .env (VITE_DEFAULT_*) y se validan contra ENGINES. */
+/** Motor inicial (VITE_DEFAULT_ENGINE, validado contra ENGINES). La versión y el perfil siempre empiezan vacíos: hay que elegirlos. */
 function buildDefaultSelection(): EngineSelection {
   const engine = ENGINES.find((e) => e.name === config.defaultEngine) ?? ENGINES[0];
-  const hasVersion = engine.versions.some((v) => v.value === config.defaultEngineVersion);
   return {
     engine: engine.name,
-    engine_version: hasVersion ? config.defaultEngineVersion : '',
+    engine_version: '',
     system: null,
-    profile: 'mechanic',
+    profile: '',
     vehicle: { brand: '', model: '', year: null, vin: '' },
   };
 }
@@ -29,6 +28,7 @@ export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [engineSelection, setEngineSelection] = useState<EngineSelection>(buildDefaultSelection);
+  const [selectionRequest, setSelectionRequest] = useState(0);
   const [page, setPage] = useState<Page>('chat');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -50,6 +50,8 @@ export default function App() {
     };
   }, []);
 
+  const requestSelection = useCallback(() => setSelectionRequest((n) => n + 1), []);
+
   const upsertConversation = useCallback((c: Conversation) => {
     setConversations((prev) => sortByUpdated([c, ...prev.filter((x) => x.id !== c.id)]));
   }, []);
@@ -65,13 +67,15 @@ export default function App() {
       conversations,
       activeConversationId,
       engineSelection,
+      selectionRequest,
       setConversations,
       setActiveConversationId,
       setEngineSelection,
+      requestSelection,
       upsertConversation,
       deleteConversation,
     }),
-    [conversations, activeConversationId, engineSelection, upsertConversation, deleteConversation],
+    [conversations, activeConversationId, engineSelection, selectionRequest, requestSelection, upsertConversation, deleteConversation],
   );
 
   return (

@@ -128,7 +128,7 @@ El frontend **no implementa IA ni búsqueda vectorial**. Toda la inteligencia vi
   - Botón "Ver fuente" que abre un modal con todos los detalles
   - Enlace a PDF original si el backend lo devuelve
 - **Documentos descartados** — aviso desplegable si el backend rechazó manuales por versión incompatible.
-- **Tarjeta de aclaración** cuando el backend necesita más información (por ejemplo: versión del motor no especificada). El usuario puede responder desde esa misma tarjeta.
+- **Versión y perfil obligatorios**: el selector de arriba a la derecha empieza vacío y no se puede enviar una consulta hasta elegir ambos; si falta alguno se muestra un aviso y se abre el selector.
 - **Gestión de errores** con mensajes en lenguaje natural y botón "Reintentar" que reenvía el último mensaje.
 - **Cancelar** una petición en curso.
 
@@ -186,8 +186,7 @@ El frontend **no implementa IA ni búsqueda vectorial**. Toda la inteligencia vi
 │  │   ├── contract.ts         Interfaces ApiClient       │
 │  │   ├── conversation.ts     Modelo de conversación     │
 │  │   ├── document.ts         Modelo de documento        │
-│  │   ├── engine.ts           Motor, versión, sistema    │
-│  │   └── source.ts           Fuentes de evidencia       │
+│  │   └── engine.ts           Motor, versión, sistema    │
 │  ├── components/             UI por dominio             │
 │  │   ├── chat/               Ventana de chat            │
 │  │   ├── conversations/      Sidebar e historial        │
@@ -391,15 +390,13 @@ cp .env.example .env
 │   │   ├── contract.ts
 │   │   ├── conversation.ts
 │   │   ├── document.ts
-│   │   ├── engine.ts
-│   │   └── source.ts
+│   │   └── engine.ts
 │   ├── utils/
 │   │   └── dateUtils.ts
 │   └── components/
 │       ├── chat/
 │       │   ├── ChatWindow.tsx
 │       │   ├── ChatError.tsx
-│       │   ├── ClarificationPanel.tsx
 │       │   ├── CriticalityBadge.tsx
 │       │   ├── EvidenceStatus.tsx
 │       │   ├── Message.tsx

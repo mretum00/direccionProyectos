@@ -22,16 +22,9 @@ export const ENGINES: EngineOption[] = [
   },
 ];
 
-export const SYSTEMS: { label: string; value: EngineSystem }[] = [
-  { label: 'Auto', value: null },
-  { label: 'CIR-01 Combustión', value: 'CIR-01' },
-  { label: 'CIR-02 Alta tensión', value: 'CIR-02' },
-  { label: 'CIR-03 Electrónica', value: 'CIR-03' },
-];
-
 export const PROFILES: { label: string; value: Profile }[] = [
   { label: 'Mecánico', value: 'mechanic' },
-  { label: 'Usuario', value: 'user' },
+  { label: 'Conductor', value: 'user' },
 ];
 
 export interface VehicleInfo {
@@ -45,6 +38,14 @@ export interface EngineSelection {
   engine: string;
   engine_version: string;
   system: EngineSystem;
-  profile: Profile;
+  /** Vacío hasta que el usuario lo elige, igual que la versión. */
+  profile: Profile | '';
   vehicle: VehicleInfo;
+}
+
+/** Selección con lo obligatorio ya elegido (versión y perfil): la única que permite enviar. */
+export type CompleteSelection = EngineSelection & { engine_version: string; profile: Profile };
+
+export function isComplete(selection: EngineSelection): selection is CompleteSelection {
+  return !!selection.engine_version && !!selection.profile;
 }

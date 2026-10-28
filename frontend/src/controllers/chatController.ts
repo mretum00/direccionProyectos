@@ -12,6 +12,10 @@ function parseChatResponse(raw: unknown): AssistantResponse {
 
 export const chatController = {
   async send(request: ChatRequest, signal?: AbortSignal): Promise<AssistantResponse> {
+    // Última barrera: la UI ya lo impide, pero ninguna petición debe salir sin versión.
+    if (!request.engine_version?.trim()) {
+      throw new Error('La consulta no puede enviarse sin versión del motor');
+    }
     const raw = await apiRequest<unknown>('/api/chat', {
       method: 'POST',
       body: JSON.stringify(request),

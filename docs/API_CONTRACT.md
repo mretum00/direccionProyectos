@@ -48,9 +48,9 @@
 }
 ```
 
-- `engine` y `engine_version`: motor y versión seleccionados. Pueden ir vacíos.
+- `engine` y `engine_version`: motor y versión seleccionados. `engine_version` es **obligatoria**: sin ella (o vacía) la petición se rechaza con 422. El frontend no deja enviar hasta que el usuario la elige.
 - `system`: opcional (`CIR-01`, `CIR-02`, `CIR-03`) o ausente.
-- `profile`: `"mechanic"` (lenguaje técnico) o `"user"` (lenguaje sencillo).
+- `profile`: `"mechanic"` (lenguaje técnico) o `"user"` (lenguaje sencillo). **Obligatorio**, igual que la versión: sin valor por defecto; si falta o no es uno de esos dos valores, la petición se rechaza con 422.
 - `history`: últimos 6 mensajes (el backend es sin estado).
 - `vehicle`: datos informativos opcionales.
 
@@ -64,7 +64,6 @@
     "content": "texto completo de la respuesta"
   },
   "evidence_status": "high | medium | insufficient",
-  "needs_clarification": false,
   "confidence": 0.92,
   "documents_consulted": 3,
   "interpreted_query": {
@@ -85,12 +84,6 @@
     "checks": [],
     "decision_tree_id": "",
     "procedure": ""
-  },
-  "clarification": {
-    "message": "",
-    "missing_fields": [
-      { "key": "engine_version", "label": "Versión del motor", "options": ["V1.0", "V1.1", "V2.0"] }
-    ]
   },
   "sources": [
     {
@@ -118,7 +111,6 @@
 - Si no llega `sections`, se muestra `message.content` junto con las fuentes.
 - Nunca inventar datos que el backend no envíe.
 - `evidence_status`: `high` → «Evidencia: ALTA», `medium` → «Evidencia: MEDIA», `insufficient` → aviso destacado. Si no llega, no se muestra.
-- `needs_clarification = true` → tarjeta de aclaración con `clarification.missing_fields`.
 - `discarded_sources` → aviso desplegable.
 - Errores de red: «No se ha podido conectar con el servidor». Errores HTTP: «No se ha podido procesar la consulta», con botón Reintentar.
 
@@ -207,7 +199,7 @@ Subida multipart de un PDF. Devuelve el documento creado con estado `pending`.
 
 ## 8. Tipos TypeScript
 
-Ver `frontend/src/types/chat.ts`, `frontend/src/types/conversation.ts`, `frontend/src/types/document.ts`, `frontend/src/types/contract.ts`, `frontend/src/types/engine.ts`, `frontend/src/types/source.ts`.
+Ver `frontend/src/types/chat.ts`, `frontend/src/types/conversation.ts`, `frontend/src/types/document.ts`, `frontend/src/types/contract.ts`, `frontend/src/types/engine.ts`.
 
 ---
 
@@ -250,8 +242,7 @@ La aplicación no tiene modo mock: el frontend siempre habla con el backend.
 
 Especificación que debe cumplir `backend/services/rag_pipeline.py`:
 
-- `engine_version` se compara (sin distinguir mayúsculas ni espacios) con las versiones presentes en la base de datos.
+- `engine_version` y `profile` son obligatorios y los valida el esquema de la petición (422 si faltan); el pipeline los da por buenos.
 - Solo se recuperan fragmentos cuyo `applicable_versions` incluye esa versión.
-- Si `engine_version` está vacía o no existe, la respuesta lleva `needs_clarification: true` y `clarification.missing_fields[0].options` con las versiones disponibles; no se consulta al LLM.
-- Si la versión existe pero no hay fragmentos aplicables, se devuelve `evidence_status: "insufficient"` y `sources: []`.
+- Si la versión no existe o no hay fragmentos aplicables, se devuelve `evidence_status: "insufficient"` y `sources: []`, sin consultar al LLM.
 - Los campos opcionales sin valor se omiten de la respuesta (no se envían como `null`).

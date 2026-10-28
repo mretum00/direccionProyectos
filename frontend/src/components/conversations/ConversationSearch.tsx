@@ -2,7 +2,6 @@ import { useState, useMemo } from 'react';
 import { Search, X, Star, Calendar, Filter } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { useConversations } from '@/hooks/useConversations';
-import { useAppStore } from '@/store/appStore';
 import { relativeDate } from '@/utils/dateUtils';
 import { toPlainPreview } from '@/utils/text';
 import { ENGINES } from '@/types/engine';
@@ -14,7 +13,6 @@ interface ConversationSearchProps {
 
 export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
   const { searchConversations, selectConversation } = useConversations();
-  const store = useAppStore();
   const [query, setQuery] = useState('');
   const [engineVersion, setEngineVersion] = useState('');
   const [favoriteOnly, setFavoriteOnly] = useState(false);
