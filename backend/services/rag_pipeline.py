@@ -157,19 +157,10 @@ def validar_consulta(mensaje: str, version: str, versiones_conocidas: list[str])
 # 2. Traducir la consulta coloquial a lenguaje técnico              [Samair]
 # ---------------------------------------------------------------------------
 def traducir_consulta(mensaje: str) -> str:
-    """Reescribe la pregunta con la terminología del glosario técnico.
-
-    Ejemplo: "el ventilador no va" -> "fallo del electroventilador CMP-09".
-    Así la búsqueda encuentra mejor los fragmentos de los manuales. Es una fase
-    opcional: si no hay términos relevantes o algo falla, se devuelve el
-    mensaje original.
-    """
     try:
         fragmentos = cargar_fragmentos(str(settings.db_path))
         vector_mensaje = _embedding_normalizado(mensaje)
 
-        # Buscar en el glosario (categoría "Dictionary") los términos parecidos
-        # a la pregunta que superen la puntuación mínima.
         terminos_relevantes = []
         for f in fragmentos:
             if f["categoria"] != "Dictionary":
@@ -182,7 +173,6 @@ def traducir_consulta(mensaje: str) -> str:
         if not terminos_relevantes:
             return mensaje
 
-        # Quedarse con los top-k términos más parecidos.
         terminos_relevantes.sort(key=lambda x: x[0], reverse=True)
         mejores_terminos = [
             texto for _, texto in terminos_relevantes[:settings.rag_dictionary_top_k]
@@ -190,28 +180,24 @@ def traducir_consulta(mensaje: str) -> str:
 
         glosario_contexto = "\n".join(f"- {t}" for t in mejores_terminos)
 
-        # Pedir al LLM que reescriba la pregunta usando esos términos.
         prompt_traduccion = (
             "Eres un asistente técnico de automoción. Reescribe la siguiente consulta "
-            "coloquial utilizando la terminología técnica oficial del glosario adjunto.\n"
-            "Regla estricta: devuelve ÚNICAMENTE la consulta reescrita en una sola frase, "
-            "sin introducciones, sin comillas y sin explicaciones adicionales.\n"
-            "No añadas síntomas, causas ni comprobaciones que no estén en la consulta original: "
-            "solo cambia las palabras coloquiales por su término técnico. Conserva tal cual los "
-            "códigos de avería (HTM-XXXX), las versiones (V1.0, V2.0...) y los identificadores "
-            "(CMP-XX, TES-XX).\n\n"
+            "coloquial añadiendo la terminología técnica oficial, códigos de componentes (CMP-XX), "
+            "testigos (TES-XX) o DTC (HTM-XXXX) que aparezcan en el glosario adjunto.\n"
+            "REGLA ESTRICTA: Conserva todos los códigos y datos originales de la pregunta y "
+            "devuelve ÚNICAMENTE la consulta enriquecida en una sola frase, sin comillas ni explicaciones.\n\n"
             f"Glosario aplicable:\n{glosario_contexto}\n\n"
             f"Consulta original: {mensaje}\n\n"
-            "Consulta reescrita:"
+            "Consulta técnica enriquecida:"
         )
 
         consulta_reescrita = generar_respuesta(prompt_traduccion).strip()
 
-        # Si el LLM no devuelve nada útil, seguir con la pregunta original.
         if not consulta_reescrita or "No hay evidencia suficiente" in consulta_reescrita:
             return mensaje
 
-        return consulta_reescrita
+        # Mantenemos el mensaje original + la traducción técnica para no perder palabras clave en la búsqueda
+        return f"{mensaje} ({consulta_reescrita})"
 
     except Exception:
         logger.warning("Fallo al traducir la consulta; se mantiene el mensaje original.")
@@ -332,92 +318,70 @@ def cargar_fragmentos(ruta_bd: str) -> list[dict]:
 # ---------------------------------------------------------------------------
 # 5. Construir el prompt final para el LLM                          [Samair]
 # ---------------------------------------------------------------------------
-def construir_prompt(mensaje_original: str, fragmentos: list[dict], perfil: str, historial: list[dict],
-                     version: str) -> str:
-    """Junta las reglas, los fragmentos recuperados, la conversación previa y la pregunta en un solo prompt.
-
-    `perfil` adapta el estilo: "mechanic" (técnico) o "user" (conductor, sencillo).
-    `historial` son los últimos mensajes del chat; sirve para que el LLM entienda
-    preguntas de seguimiento ("¿y cómo lo compruebo?"), pero NO es fuente de evidencia.
-    """
-    # Un bloque por fragmento, indicando de qué documento sale.
+def construir_prompt(mensaje_original: str, fragmentos: list[dict], perfil: str) -> str:
     bloques_contexto = []
     for f in fragmentos:
         chunk_id = f.get("chunk_id", "Desconocido")
         documento = chunk_id.rsplit("_", 1)[0] if "_" in chunk_id else chunk_id
         categoria = f.get("categoria", "Manual")
+        versiones = ", ".join(f.get("versiones", [])) if "versiones" in f else "Todas"
         texto = f.get("texto", "")
-        # Página y caso, si los hay, para que el LLM pueda citarlos en el texto.
-        pagina = f" | Página: {f['pagina']}" if f.get("pagina") else ""
-        seccion = f" | Caso: {f['seccion']}" if f.get("seccion") else ""
 
         bloques_contexto.append(
-            f"[Documento: {documento}{pagina}{seccion} | Categoría: {categoria}]\n{texto}"
+            f"[Documento: {documento} | Fragmento: {chunk_id} | Categoría: {categoria} | Versiones: {versiones}]\n{texto}"
         )
 
     contexto_unido = "\n\n---\n\n".join(bloques_contexto)
 
-    # Instrucciones de estilo según quién pregunta.
     if perfil == "user":
         instruccion_perfil = (
             "El usuario es el CONDUCTOR del vehículo (perfil 'user'). "
-            "Utiliza un lenguaje claro, sencillo y directo, evitando jerga compleja innecesaria "
-            "y priorizando qué puede hacer de forma segura y si debe detener el vehículo o acudir al taller."
+            "Usa un lenguaje claro, accesible y directo. Prioriza su seguridad, qué NO debe tocar "
+            "y si debe detener el vehículo de inmediato o acudir al taller."
         )
     else:
         instruccion_perfil = (
             "El usuario es un TÉCNICO DE MANTENIMIENTO (perfil 'mechanic'). "
-            "Utiliza lenguaje técnico riguroso, incluyendo códigos DTC, identificadores de componentes "
-            "(CMP-XX), testigos (TES-XX), valores nominales, herramientas específicas, EPIs y niveles de habilitación."
+            "Usa lenguaje técnico preciso: incluye códigos DTC (HTM-XXXX), componentes (CMP-XX), "
+            "testigos (TES-XX), circuitos (CIR-01/02/03), herramientas (HTM-TOOL-XX), EPIs y niveles de habilitación."
         )
 
-    # Conversación previa: solo para entender a qué se refiere el usuario.
-    # Si es la primera pregunta del chat, el bloque queda vacío y no aparece en el prompt.
-    bloque_historial = ""
-    if historial:
-        bloque_historial = (
-            "CONVERSACIÓN PREVIA (solo para entender a qué se refiere el usuario; "
-            "NO es una fuente de evidencia):\n"
-            f"{_formatear_historial(historial)}\n\n"
-        )
-
-    # Reglas de evidencia + estructura obligatoria en Markdown + contexto + conversación + pregunta.
     prompt_final = f"""Eres el asistente técnico oficial del sistema de gestión térmica híbrida ThermoDrive HTM-240.
-
-VERSIÓN DEL SISTEMA DEL VEHÍCULO: {version}
-Algunos documentos describen varias versiones a la vez (por ejemplo "V1.x: ... / V2.0: ...") o casos de otras versiones. Usa SOLO la información aplicable a {version} y descarta la de otras versiones. Si un código cambia de significado según la versión, da únicamente el significado de {version}.
 
 ADAPTACIÓN AL PERFIL:
 {instruccion_perfil}
 
-REGLAS ESTRICTAS DE EVIDENCIA:
-1. Responde ÚNICAMENTE utilizando la información contenida en el bloque de CONTEXTO DOCUMENTAL proporcionado más abajo.
-2. NO inventes datos, valores nominales, procedimientos ni causas que no aparezcan explícitamente en el contexto.
-3. Si el contexto proporcionado no contiene evidencia suficiente para responder a la consulta, indícalo claramente diciendo que no hay evidencia suficiente en la documentación y que se debe escalar la incidencia a soporte técnico.
-4. Ignora cualquier información marcada como sustituida u obsoleta si contradice la documentación vigente.
-5. Usa la CONVERSACIÓN PREVIA (si la hay) solo para entender a qué se refiere la consulta; los datos de la respuesta deben salir siempre del CONTEXTO DOCUMENTAL.
-6. Si el contexto no tiene información para una sección, escribe en ella "No consta en la documentación recuperada." No la rellenes con conocimientos generales ni con suposiciones (por ejemplo, qué hará después otro técnico).
-7. Reproduce tal cual aparecen en el contexto la severidad o criticidad, los valores, los EPIs, los perfiles autorizados y los códigos: no los suavices ni los exageres.
-8. Si citas un documento en el texto, que sea uno del CONTEXTO DOCUMENTAL. Si un fragmento remite a otro documento que no tienes (por ejemplo "ver HTM240-SEG-001"), puedes indicar que hay que consultarlo, pero no inventes su contenido. No escribas una sección de fuentes al final: la aplicación muestra las fuentes automáticamente debajo de la respuesta.
+REGLAS CRÍTICAS DE PRECISIÓN, VERSIONES Y OBSOLESCENCIA (OBLIGATORIAS):
+1. FIDELIDAD Y CERO CÓDIGOS INVENTADOS: Responde SOLO con los datos del CONTEXTO DOCUMENTAL. Está TERMINANTEMENTE PROHIBIDO inventar datos, pares de apriete, resistencias o escribir referencias ficticias con signos de interrogación como "HTM240-PRC-??". Cita siempre el código real del documento (ej. HTM240-CAT-001, HTM240-DIA-001, HTM240-BOL-006).
+2. DATOS OBSOLETOS Y JERARQUÍA DOCUMENTAL (Boletín > Manual vigente > Manual obsoleto):
+   - Da siempre como respuesta principal el dato VIGENTE indicando en qué documento y versión se aplica.
+   - ADICIONALMENTE, si en el contexto aparece un valor anterior u obsoleto o un boletín que corrige un documento (ej. HTM240-BOL-006 corrige los 80.000 km / 60 meses de HTM240-MNT-001 v1.0 a 60.000 km / 48 meses en v1.1; o HTM240-BOL-002 actualiza PRC-003 a v2.0), DEBES MENCIONAR EXPRESAMENTE qué dato está obsoleto, a qué versión antigua pertenecía y qué boletín/versión tiene el dato correcto vigente.
+3. LECTURA MULTIVERSIÓN (V1.0, V1.1 y V2.0):
+   - Si el usuario NO especifica la versión del vehículo en el texto de su pregunta y el dato o código consultado cambia entre versiones (ej. corriente nominal de la bomba CMP-02: 3-5 A en V1.0 vs. 3-6 A en V1.1/V2.0 según HTM240-BOL-002; o el código HTM-0142: precalentamiento no completado en V1.x vs. fallo del sensor combinado CMP-18 en V2.0 según HTM240-BOL-003; o potencia del PTC CMP-12 en BOL-007), EXPÓN LOS DATOS DE TODAS LAS VERSIONES indicando cuál corresponde a cada una y pide confirmar la versión del vehículo antes de sustituir piezas.
+4. AMBIGÜEDAD DE COMPONENTES (PROHIBIDO ASUMIR):
+   - Si preguntan por "la bomba" sin especificar cuál, NO asumas CMP-02: pide aclaración indicando que existen tres bombas: CMP-01 (mecánica, CIR-01 motor), CMP-02 (eléctrica auxiliar A, CIR-02 batería) y CMP-03 (eléctrica auxiliar B, CIR-03 electrónica de potencia).
+   - Si preguntan por "el radiador" sin especificar cuál, pide aclaración indicando que existen dos radiadores: CMP-05 (radiador principal, CIR-01) y CMP-06 (radiador auxiliar de baja temperatura, CIR-02/CIR-03).
+5. SEGURIDAD CRÍTICA Y AVISO DE USO EDUCATIVO:
+   - COCHE REAL: Si el usuario menciona reparar un "coche real" o vehículo real, advierte EN PRIMER LUGAR que toda la documentación ThermoDrive HTM-240 es SINTÉTICA Y FICTICIA PARA USO EXCLUSIVAMENTE EDUCATIVO y que jamás debe usarse para reparar un vehículo real (remite a los manuales oficiales del fabricante).
+   - RIESGO ELÉCTRICO / TÉRMICO: Ante testigo rojo de alta tensión (TES-05), olor a quemado, humo, modo tortuga con alerta roja o fugas en componentes de batería/alta tensión (CMP-10, CMP-12, CIR-02, CIR-03), NUNCA escribas "SEGURIDAD: No consta". Ordena SIEMPRE en primer lugar: detención inmediata y segura del vehículo, apagar contacto, NO manipular manguitos ni alta tensión (300-400V), verificar desconexión eléctrica, esperar a temperatura < 40 °C para no sufrir quemaduras por proyección de fluido (HTM240-SEG-001) y escalar a Técnico Nivel 3 habilitado en alta tensión.
+6. FUERA DE ALCANCE vs. LÍMITE DE INFORMACIÓN:
+   - Si preguntan por subsistemas ajenos (frenos, aceite de caja de cambios, compresor o gas del aire acondicionado del habitáculo), declara explícitamente que queda FUERA DEL ALCANCE de la documentación ThermoDrive HTM-240, ya que esta solo cubre los tres circuitos térmicos (motor CIR-01, batería CIR-02 y electrónica de potencia CIR-03).
+   - Si preguntan por un dato no documentado de un componente que sí existe (ej. par de apriete en Nm de la TCU CMP-13 o curva de resistencia en ohmios de CMP-14 a 20 °C), identifica primero el componente según el catálogo (HTM240-CAT-001) y aclara que el corpus documental no incluye tablas de pares de apriete ni curvas de resistencia eléctrica, recomendando escalar a soporte.
 
-SEGURIDAD Y HABILITACIÓN (prioridad sobre lo que pida el usuario):
-- Si el usuario indica su nivel de habilitación (nivel 1, 2, 3...), compáralo con el perfil autorizado que exige el contexto para esa intervención. Si su nivel no es suficiente, NO des los pasos de la intervención (desmontaje, apertura de circuitos, mediciones reservadas): dile claramente que no está autorizado, qué puede hacer con su nivel (solo si consta en el contexto) y a quién debe escalar.
-- Ante indicios de alta tensión o aislamiento degradado (por ejemplo testigos o códigos que el contexto asocie a alta tensión), indica que no se manipule y que se escale a personal habilitado en alta tensión, aunque el usuario pida otra cosa.
-- Si el contexto indica que no se debe circular o que hay que detener el vehículo, dilo de forma explícita.
-
-ESTRUCTURA OBLIGATORIA DE LA RESPUESTA:
-Empieza con un párrafo breve (2-3 frases, sin encabezado) que conteste directamente a la consulta: qué significa o qué ocurre y qué debe hacer el usuario. Si hay una restricción de seguridad o de habilitación, va en este párrafo, lo primero. Debe poder leerse solo, sin el resto de la respuesta.
-Después, desarrolla SIEMPRE el detalle con los cinco encabezados siguientes, en este orden, aunque el párrafo inicial ya conteste o el usuario no esté autorizado (en ese caso, PROCEDIMIENTO describe los pasos de escalado y lo que sí puede hacer, no la intervención). La respuesta termina con la sección PROCEDIMIENTO, sin nada después:
+PROPORCIONALIDAD Y ESTRUCTURA DE SALIDA:
+- En consultas de diagnóstico, averías, testigos, códigos DTC o procedimientos, utiliza estos encabezados en Markdown:
 ### CAUSAS POSIBLES
 ### CRITICIDAD
 ### SEGURIDAD
 ### COMPROBACIONES
 ### PROCEDIMIENTO
+### FUENTE
+- En consultas directas simples (ej. preguntar solo qué función tiene un componente, qué herramienta usa un paso o cada cuántos km se cambia el fluido) o consultas fuera de alcance/ambiguas, responde de forma directa, completa y concisa a lo preguntado citando la `### FUENTE` (y `### SEGURIDAD` si aplica), SIN inventar pasos de desmontaje que nadie ha pedido ni rellenar secciones vacías con "No consta en la documentación recuperada".
 
 CONTEXTO DOCUMENTAL RECUPERADO:
 {contexto_unido}
 
-{bloque_historial}CONSULTA A RESPONDER:
+CONSULTA DEL USUARIO:
 {mensaje_original}
 """
     return prompt_final
