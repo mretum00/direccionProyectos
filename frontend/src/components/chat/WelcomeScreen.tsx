@@ -31,7 +31,7 @@ export function WelcomeScreen({ onSuggestion }: WelcomeScreenProps) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center py-12">
       <div className="relative mb-6">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-xl shadow-cyan-500/20">
+        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-marca-500 to-marca-600 flex items-center justify-center shadow-xl shadow-marca-500/20">
           <Sparkles className="w-8 h-8 text-white" />
         </div>
       </div>
@@ -41,9 +41,9 @@ export function WelcomeScreen({ onSuggestion }: WelcomeScreenProps) {
         Consulta la documentación técnica de tu motor y obtén respuestas verificables.
       </p>
 
-      <div className="flex items-start gap-3 max-w-md mb-8 p-4 rounded-xl bg-cyan-500/5 border border-cyan-500/15 text-left">
-        <Settings2 className="w-4 h-4 text-cyan-400 mt-0.5 flex-shrink-0" />
-        <p className="text-sm text-texto-300 leading-relaxed">
+      <div className="flex items-start gap-2.5 max-w-sm mb-8 px-3.5 py-3 rounded-xl bg-marca-500/5 border border-marca-500/15 text-left">
+        <Settings2 className="w-4 h-4 text-marca-400 mt-0.5 flex-shrink-0" />
+        <p className="text-xs text-texto-300 leading-relaxed">
           Antes de empezar, abre el selector de motor (arriba a la derecha) y elige tu{' '}
           <span className="text-texto font-medium">versión</span> y si prefieres respuestas de{' '}
           <span className="text-texto font-medium">Mecánico</span> o de{' '}
@@ -57,10 +57,10 @@ export function WelcomeScreen({ onSuggestion }: WelcomeScreenProps) {
           <button
             key={text}
             onClick={() => onSuggestion(text)}
-            className="group flex items-start gap-3 p-4 rounded-xl bg-tarjeta border border-contraste/5 hover:border-cyan-500/20 hover:bg-cyan-500/5 transition-all text-left"
+            className="group flex items-start gap-3 p-4 rounded-xl bg-tarjeta border border-contraste/5 hover:border-marca-500/20 hover:bg-marca-500/5 transition-all text-left"
           >
-            <div className="w-9 h-9 rounded-lg bg-contraste/5 group-hover:bg-cyan-500/10 flex items-center justify-center flex-shrink-0 transition-colors">
-              <Icon className="w-4 h-4 text-texto-400 group-hover:text-cyan-400 transition-colors" />
+            <div className="w-9 h-9 rounded-lg bg-contraste/5 group-hover:bg-marca-500/10 flex items-center justify-center flex-shrink-0 transition-colors">
+              <Icon className="w-4 h-4 text-texto-400 group-hover:text-marca-400 transition-colors" />
             </div>
             <div className="min-w-0">
               <p className="text-sm text-texto-300 group-hover:text-texto transition-colors">{text}</p>

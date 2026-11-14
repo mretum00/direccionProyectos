@@ -33,8 +33,8 @@ export function DocumentsPage() {
     <div className="h-full overflow-y-auto">
       <div className="max-w-4xl mx-auto px-4 py-6">
         <div className="flex items-center gap-2.5 mb-6">
-          <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
-            <FileText className="w-5 h-5 text-cyan-400" />
+          <div className="w-9 h-9 rounded-lg bg-marca-500/10 flex items-center justify-center">
+            <FileText className="w-5 h-5 text-marca-400" />
           </div>
           <div>
             <h2 className="text-lg font-bold text-texto">Documentación</h2>

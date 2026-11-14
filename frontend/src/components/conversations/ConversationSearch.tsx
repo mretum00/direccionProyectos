@@ -57,7 +57,7 @@ export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar por título, contenido, motor, versión..."
-            className="w-full pl-10 pr-10 py-2.5 bg-fondo border border-contraste/10 rounded-lg text-sm text-texto outline-none focus:border-cyan-500/50"
+            className="w-full pl-10 pr-10 py-2.5 bg-fondo border border-contraste/10 rounded-lg text-sm text-texto outline-none focus:border-marca-500/50"
           />
           {query && (
             <button onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-texto-500 hover:text-texto">
@@ -129,7 +129,7 @@ export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
               <Calendar className="w-8 h-8 text-texto-700 mx-auto mb-2" />
               <p className="text-sm text-texto-500">No se encontraron conversaciones</p>
               {(query || engineVersion || favoriteOnly || dateFrom || dateTo) && (
-                <button onClick={clearAll} className="text-xs text-cyan-400 hover:text-cyan-300 mt-2">
+                <button onClick={clearAll} className="text-xs text-marca-400 hover:text-marca-300 mt-2">
                   Limpiar filtros
                 </button>
               )}
@@ -153,7 +153,7 @@ export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
                     <span className="text-[10px] text-texto-500 flex-shrink-0">{relativeDate(conv.updated_at)}</span>
                   </div>
                   {conv.engine_version && (
-                    <span className="text-[10px] text-cyan-400/70">{conv.engine} · {conv.engine_version}</span>
+                    <span className="text-[10px] text-marca-400/70">{conv.engine} · {conv.engine_version}</span>
                   )}
                   {matchSnippet && (
                     <p className="text-xs text-texto-500 mt-1 line-clamp-2">

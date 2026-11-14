@@ -14,6 +14,12 @@ export default {
         tarjeta: color('--color-tarjeta'),
         elevado: color('--color-elevado'),
         contraste: color('--color-contraste'),
+        marca: {
+          300: color('--color-marca-300'),
+          400: color('--color-marca-400'),
+          500: color('--color-marca-500'),
+          600: color('--color-marca-600'),
+        },
         texto: {
           DEFAULT: color('--color-texto'),
           100: color('--color-texto-100'),

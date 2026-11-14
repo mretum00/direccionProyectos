@@ -5,7 +5,7 @@ import { ToggleGroup } from '@/components/ui/ToggleGroup';
 import { ENGINES, PROFILES, SYSTEMS, type EngineSelection, type EngineSystem } from '@/types/engine';
 
 const SELECT_CLASS =
-  'w-full bg-fondo border border-contraste/10 rounded-md px-3 py-2 text-sm text-texto outline-none focus:border-cyan-500/50';
+  'w-full bg-fondo border border-contraste/10 rounded-md px-3 py-2 text-sm text-texto outline-none focus:border-marca-500/50';
 
 export function EngineSelector() {
   const { engineSelection: sel, setEngineSelection, engineSelectorOpen: open, setEngineSelectorOpen: setOpen } = useAppStore();
@@ -32,12 +32,12 @@ export function EngineSelector() {
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-contraste/5 hover:bg-contraste/10 border border-contraste/5 text-xs transition-colors"
       >
-        <Settings2 className="w-3.5 h-3.5 text-cyan-400" />
+        <Settings2 className="w-3.5 h-3.5 text-marca-400" />
         <span className="hidden md:inline text-texto-200">
           {sel.engine}
           {sel.engine_version && <span className="text-texto-400"> · {sel.engine_version}</span>}
         </span>
-        {sel.system && <span className="hidden lg:inline text-cyan-400"> · {sel.system}</span>}
+        {sel.system && <span className="hidden lg:inline text-marca-400"> · {sel.system}</span>}
         <ChevronDown className="w-3.5 h-3.5 text-texto-500" />
       </button>
 
@@ -95,7 +95,7 @@ export function EngineSelector() {
 
           <button
             onClick={() => setOpen(false)}
-            className="w-full py-2 rounded-md bg-cyan-500/10 text-cyan-400 text-sm font-medium hover:bg-cyan-500/20 transition-colors"
+            className="w-full py-2 rounded-md bg-marca-500/10 text-marca-400 text-sm font-medium hover:bg-marca-500/20 transition-colors"
           >
             Aplicar
           </button>

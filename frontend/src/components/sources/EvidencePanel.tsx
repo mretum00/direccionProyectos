@@ -14,7 +14,7 @@ export function EvidencePanel({ sources }: EvidencePanelProps) {
 
   return (
     <div className="space-y-2">
-      <h3 className="text-cyan-400 font-bold text-xs tracking-wider uppercase">
+      <h3 className="text-marca-400 font-bold text-xs tracking-wider uppercase">
         Fuentes
         <span className="text-texto-500 font-normal ml-1.5">({sources.length})</span>
       </h3>

@@ -21,6 +21,12 @@
   --color-texto-500: 107 114 128;
   --color-texto-600: 75 85 99;
   --color-texto-700: 55 65 81;    /* texto muy apagado */
+
+  /* Azul de marca (logo ARSOFT, #028CC5): botones, enlaces, selección y acentos. */
+  --color-marca-300: 102 200 235;
+  --color-marca-400: 51 170 221;  /* texto y detalles sobre fondo oscuro */
+  --color-marca-500: 2 140 197;   /* azul exacto del logo */
+  --color-marca-600: 2 112 158;
 }
 
 @layer base {

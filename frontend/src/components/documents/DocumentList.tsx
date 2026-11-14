@@ -46,7 +46,7 @@ export function DocumentList({ documents, loading, endpointAvailable }: Document
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-6 h-6 text-cyan-400 animate-spin" />
+        <Loader2 className="w-6 h-6 text-marca-400 animate-spin" />
       </div>
     );
   }
@@ -66,7 +66,7 @@ export function DocumentList({ documents, loading, endpointAvailable }: Document
       {config.enableDocumentUpload && (
         <div className="flex items-center gap-3">
           <label className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${
-            uploading ? 'bg-texto-500/10 text-texto-500' : 'bg-cyan-500/10 text-cyan-400 hover:bg-cyan-500/20'
+            uploading ? 'bg-texto-500/10 text-texto-500' : 'bg-marca-500/10 text-marca-400 hover:bg-marca-500/20'
           }`}>
             {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
             {uploading ? 'Subiendo...' : 'Añadir documento'}

@@ -30,7 +30,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             createConversation();
             onNavigate();
           }}
-          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-medium hover:from-cyan-400 hover:to-blue-500 transition-all shadow-lg shadow-cyan-500/10"
+          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gradient-to-r from-marca-500 to-marca-600 text-white text-sm font-medium hover:from-marca-400 hover:to-marca-500 transition-all shadow-lg shadow-marca-500/10"
         >
           <Plus className="w-4 h-4" />
           Nueva conversación

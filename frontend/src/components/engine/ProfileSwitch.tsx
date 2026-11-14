@@ -11,7 +11,7 @@ export function ProfileSwitch() {
       <button
         onClick={() => store.setEngineSelection({ ...store.engineSelection, profile: 'mechanic' as Profile })}
         className={`flex items-center gap-1 px-2 py-1.5 rounded-l-md text-xs transition-colors ${
-          isMechanic ? 'text-cyan-400' : 'text-texto-500 hover:text-texto-300'
+          isMechanic ? 'text-marca-400' : 'text-texto-500 hover:text-texto-300'
         }`}
         title="Lenguaje técnico"
       >
@@ -22,7 +22,7 @@ export function ProfileSwitch() {
       <button
         onClick={() => store.setEngineSelection({ ...store.engineSelection, profile: 'user' as Profile })}
         className={`flex items-center gap-1 px-2 py-1.5 rounded-r-md text-xs transition-colors ${
-          !isMechanic ? 'text-cyan-400' : 'text-texto-500 hover:text-texto-300'
+          !isMechanic ? 'text-marca-400' : 'text-texto-500 hover:text-texto-300'
         }`}
         title="Lenguaje sencillo"
       >

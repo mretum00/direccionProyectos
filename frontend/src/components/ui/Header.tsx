@@ -26,7 +26,8 @@ export function Header({ page, onPageChange, onMenuClick }: HeaderProps) {
         >
           <Menu className="w-5 h-5" />
         </button>
-        <div className="hidden sm:block">
+        {/* En pantallas grandes el logo ya está en la barra lateral. */}
+        <div className="hidden sm:block lg:hidden">
           <Logo />
         </div>
       </div>
@@ -38,7 +39,7 @@ export function Header({ page, onPageChange, onMenuClick }: HeaderProps) {
             onClick={() => onPageChange(id)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
               page === id
-                ? 'bg-cyan-500/10 text-cyan-400'
+                ? 'bg-marca-500/10 text-marca-400'
                 : 'text-texto-400 hover:text-texto-200 hover:bg-contraste/5'
             }`}
           >

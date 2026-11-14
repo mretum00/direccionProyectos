@@ -23,8 +23,8 @@ export function SourceModal({ source, onClose }: SourceModalProps) {
     <Modal open={!!source} onClose={onClose} title="Detalle de fuente" maxWidth="max-w-xl">
       <div className="space-y-4">
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-lg bg-cyan-500/10 flex items-center justify-center flex-shrink-0">
-            <FileText className="w-5 h-5 text-cyan-400" />
+          <div className="w-10 h-10 rounded-lg bg-marca-500/10 flex items-center justify-center flex-shrink-0">
+            <FileText className="w-5 h-5 text-marca-400" />
           </div>
           <div className="min-w-0">
             <h4 className="text-sm font-semibold text-texto">{source.document}</h4>
@@ -54,7 +54,7 @@ export function SourceModal({ source, onClose }: SourceModalProps) {
           {source.engine_version && (
             <div>
               <span className="text-texto-500">Versión</span>
-              <p className="text-cyan-400">{source.engine_version}</p>
+              <p className="text-marca-400">{source.engine_version}</p>
             </div>
           )}
           {source.system && (
@@ -79,7 +79,7 @@ export function SourceModal({ source, onClose }: SourceModalProps) {
             href={source.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-cyan-500/10 text-cyan-400 text-sm font-medium hover:bg-cyan-500/20 transition-colors"
+            className="flex items-center justify-center gap-2 w-full py-2.5 rounded-lg bg-marca-500/10 text-marca-400 text-sm font-medium hover:bg-marca-500/20 transition-colors"
           >
             <ExternalLink className="w-4 h-4" />
             Abrir documento original

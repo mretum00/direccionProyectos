@@ -31,8 +31,8 @@ export function SettingsPage() {
     <div className="h-full overflow-y-auto">
       <div className="max-w-2xl mx-auto px-4 py-6">
         <div className="flex items-center gap-2.5 mb-6">
-          <div className="w-9 h-9 rounded-lg bg-cyan-500/10 flex items-center justify-center">
-            <Settings className="w-5 h-5 text-cyan-400" />
+          <div className="w-9 h-9 rounded-lg bg-marca-500/10 flex items-center justify-center">
+            <Settings className="w-5 h-5 text-marca-400" />
           </div>
           <div>
             <h2 className="text-lg font-bold text-texto">Ajustes</h2>
@@ -58,10 +58,10 @@ export function SettingsPage() {
             </div>
           ))}
 
-          <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-500/5 border border-blue-500/10">
-            <Info className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-marca-500/5 border border-marca-500/10">
+            <Info className="w-4 h-4 text-marca-400 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-texto-400">
-              Para cambiar la configuración, edita las variables de entorno en el archivo <code className="text-cyan-400">.env</code> de la raíz del repositorio y reinicia la aplicación.
+              Para cambiar la configuración, edita las variables de entorno en el archivo <code className="text-marca-400">.env</code> de la raíz del repositorio y reinicia la aplicación.
             </p>
           </div>
 

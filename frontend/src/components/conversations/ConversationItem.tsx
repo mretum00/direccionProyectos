@@ -43,10 +43,10 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
       <div
         onClick={() => selectConversation(conversation.id)}
         className={`group relative flex items-start gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-colors ${
-          isActive ? 'bg-cyan-500/10' : 'hover:bg-contraste/5'
+          isActive ? 'bg-marca-500/10' : 'hover:bg-contraste/5'
         }`}
       >
-        <MessageSquare className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${isActive ? 'text-cyan-400' : 'text-texto-500'}`} />
+        <MessageSquare className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${isActive ? 'text-marca-400' : 'text-texto-500'}`} />
 
         <div className="flex-1 min-w-0">
           {renaming ? (
@@ -60,10 +60,10 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
                 if (e.key === 'Escape') setRenaming(false);
               }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full bg-fondo border border-cyan-500/30 rounded px-1.5 py-0.5 text-xs text-texto outline-none"
+              className="w-full bg-fondo border border-marca-500/30 rounded px-1.5 py-0.5 text-xs text-texto outline-none"
             />
           ) : (
-            <div className={`text-xs font-medium truncate ${isActive ? 'text-cyan-300' : 'text-texto-200'}`}>
+            <div className={`text-xs font-medium truncate ${isActive ? 'text-marca-300' : 'text-texto-200'}`}>
               {conversation.title}
             </div>
           )}
