@@ -69,13 +69,13 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
           )}
           <div className="flex items-center gap-1.5 mt-0.5">
             {conversation.favorite && <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400 flex-shrink-0" />}
-            <span className="text-[10px] text-texto-500 truncate">
+            <span className="text-[11px] text-texto-500 truncate">
               {lastMessage ? toPlainPreview(lastMessage.content).slice(0, 40) : 'Sin mensajes'}
             </span>
-            <span className="text-[10px] text-texto-600 flex-shrink-0">{relativeDate(conversation.updated_at)}</span>
+            <span className="text-[11px] text-texto-600 flex-shrink-0">{relativeDate(conversation.updated_at)}</span>
           </div>
           {conversation.engine_version && (
-            <span className="inline-block mt-0.5 text-[9px] text-texto-600">{conversation.engine_version}</span>
+            <span className="inline-block mt-0.5 text-[11px] text-texto-600">{conversation.engine_version}</span>
           )}
         </div>
 

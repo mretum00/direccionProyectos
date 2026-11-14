@@ -5,10 +5,9 @@ import { conversationRepository } from '@/services/conversationRepository';
 import { useAppStore, type AppStore } from '@/store/appStore';
 import type { ChatMessage } from '@/types/chat';
 import type { Conversation } from '@/types/conversation';
+import { isSelectionComplete } from '@/types/engine';
 import { buildConversation } from '@/utils/conversation';
 import { uuid } from '@/utils/uuid';
-
-export type ChatError = { type: 'network' | 'server' | 'cancelled'; message: string } | null;
 
 function findActive(store: AppStore): Conversation | null {
   if (!store.activeConversationId) return null;
@@ -26,7 +25,7 @@ export function useChat() {
   storeRef.current = store;
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<ChatError>(null);
+  const [error, setError] = useState<string | null>(null);
   const inFlight = useRef<AbortController | null>(null);
 
   /**
@@ -36,15 +35,18 @@ export function useChat() {
    */
   const sendMessage = useCallback(async (rawText: string, baseConversation?: Conversation) => {
     const text = rawText.trim();
-    if (!text || inFlight.current) return;
-
     const current = storeRef.current;
     const selection = current.engineSelection;
+    // Versión y tipo de usuario son obligatorios (ChatWindow no deja enviar sin ellos).
+    if (!text || inFlight.current || !isSelectionComplete(selection)) return;
+
     const conversation = baseConversation ?? findActive(current) ?? buildConversation(selection);
 
     const now = new Date().toISOString();
     const userMessage: ChatMessage = { id: uuid(), role: 'user', content: text, created_at: now };
+    // Los avisos de aclaración (respuestas con needs_clarification) no se envían al modelo: no le aportan nada.
     const history = conversation.messages
+      .filter((m) => !m.response?.needs_clarification)
       .slice(-config.chatHistoryLimit)
       .map(({ role, content }) => ({ role, content }));
 
@@ -52,13 +54,12 @@ export function useChat() {
       ...conversation,
       messages: [...conversation.messages, userMessage],
       updated_at: now,
-      engine: selection.engine,
       engine_version: selection.engine_version,
       profile: selection.profile,
       title: conversation.messages.length === 0 ? text.slice(0, 50) : conversation.title,
     };
-    current.upsertConversation(pending);
     current.setActiveConversationId(pending.id);
+    current.upsertConversation(pending);
 
     const controller = new AbortController();
     inFlight.current = controller;
@@ -66,11 +67,9 @@ export function useChat() {
     setLoading(true);
 
     try {
-      const response = await api.chat(
+      const { message: answer, ...meta } = await api.chat(
         {
-          conversation_id: pending.id,
           message: text,
-          engine: selection.engine,
           engine_version: selection.engine_version,
           profile: selection.profile,
           history,
@@ -78,27 +77,30 @@ export function useChat() {
         controller.signal,
       );
 
+      const answeredAt = new Date().toISOString();
       const assistantMessage: ChatMessage = {
-        id: response.message.id,
+        id: answer.id,
         role: 'assistant',
-        content: response.message.content,
-        created_at: new Date().toISOString(),
-        response,
+        content: answer.content,
+        created_at: answeredAt,
+        response: meta,
       };
       const finalConversation: Conversation = {
         ...pending,
         messages: [...pending.messages, assistantMessage],
-        updated_at: assistantMessage.created_at ?? now,
+        updated_at: answeredAt,
       };
-      storeRef.current.upsertConversation(finalConversation);      // Un fallo al guardar no invalida la respuesta ya recibida.
+      storeRef.current.upsertConversation(finalConversation);
+      // Un fallo al guardar no invalida la respuesta ya recibida.
       conversationRepository.save(finalConversation).catch(() => undefined);
     } catch (e) {
       if (controller.signal.aborted) {
-        setError({ type: 'cancelled', message: 'Consulta cancelada' });
+        setError('Consulta cancelada');
       } else if (e instanceof TypeError) {
-        setError({ type: 'network', message: 'No se ha podido conectar con el servidor' });
+        // Sin conexión con el servidor, `fetch` lanza un TypeError.
+        setError('No se ha podido conectar con el servidor');
       } else {
-        setError({ type: 'server', message: 'No se ha podido procesar la consulta' });
+        setError('No se ha podido procesar la consulta');
       }
     } finally {
       if (inFlight.current === controller) {

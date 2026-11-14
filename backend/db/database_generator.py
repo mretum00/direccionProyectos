@@ -21,7 +21,7 @@ import pymupdf
 from sentence_transformers import SentenceTransformer
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import settings  # noqa: E402
+from config import ENGINE_VERSIONS, settings  # noqa: E402
 
 
 # ============================================================
@@ -62,14 +62,12 @@ embedder = SentenceTransformer(MODEL_NAME)
 def inicializar_bd():
     conn = sqlite3.connect(DB_PATH)
 
-    cursor = conn.cursor()
-
     # Se regenera siempre desde cero: así no quedan fragmentos antiguos de
     # documentos excluidos o con otro troceado, y las BD de versiones
     # anteriores (sin las columnas page/section) se actualizan solas.
-    cursor.execute("DROP TABLE IF EXISTS rag_documents")
+    conn.execute("DROP TABLE IF EXISTS rag_documents")
 
-    cursor.execute("""
+    conn.execute("""
         CREATE TABLE rag_documents (
             chunk_id TEXT PRIMARY KEY,
             text TEXT,
@@ -162,7 +160,9 @@ def pagina_de(posicion, inicios):
 # ============================================================
 
 def determinar_versiones(texto, documento_id):
-    versiones = ["V1.0", "V1.1", "V2.0"]
+    # Por defecto un fragmento vale para todas las versiones; las reglas siguientes lo acotan
+    # (son reglas de contenido de estos documentos, no la lista de versiones: esa está en config.py).
+    versiones = list(ENGINE_VERSIONS)
 
     if "HTM240-BOL-001" in documento_id:
         versiones = ["V1.0"]
@@ -187,15 +187,14 @@ def determinar_categoria(nombre_carpeta):
 
 
 # ============================================================
-# PROCESAMIENTO DE DOCUMENTOS
+# TROCEADO DE DOCUMENTOS
 # ============================================================
+# Cada función es un generador que produce diccionarios con, como mínimo,
+# "id" y "texto" (y opcionalmente "inicio", "seccion" y "versiones"): así no se
+# guardan todos los fragmentos en memoria.
 
 def procesar_diccionario(texto_completo, id_archivo):
-    """
-    Genera las entradas del diccionario progresivamente.
-    No almacena todos los términos en una lista.
-    """
-
+    """Un fragmento por cada viñeta (•) del diccionario."""
     indice = 0
 
     for term in re.finditer(
@@ -220,16 +219,7 @@ def procesar_documento_tecnico(
     chunk_size=CHUNK_SIZE,
     overlap=CHUNK_OVERLAP
 ):
-    """
-    Divide el texto en fragmentos con solapamiento.
-    Utiliza yield para no guardar todos los fragmentos en memoria.
-    """
-
-    texto_limpio = re.sub(r"\s+", " ", texto_completo).strip()
-
-    longitud = len(texto_limpio)
-    inicio = 0
-    indice = 0
+    """Divide el texto en fragmentos de `chunk_size` caracteres con solapamiento."""
 
     if chunk_size <= 0:
         raise ValueError("chunk_size debe ser mayor que cero")
@@ -239,6 +229,12 @@ def procesar_documento_tecnico(
             "overlap debe ser mayor o igual que cero "
             "y menor que chunk_size"
         )
+
+    texto_limpio = re.sub(r"\s+", " ", texto_completo).strip()
+
+    longitud = len(texto_limpio)
+    inicio = 0
+    indice = 0
 
     while inicio < longitud:
         fin = min(inicio + chunk_size, longitud)
@@ -267,14 +263,9 @@ def procesar_documento_tecnico(
         if fin >= longitud:
             break
 
-        # Avanzamos manteniendo el solapamiento.
+        # Avanzamos manteniendo el solapamiento; si así no avanzara (bucle infinito), seguimos desde `fin`.
         nuevo_inicio = fin - overlap
-
-        # Protección contra bucles infinitos.
-        if nuevo_inicio <= inicio:
-            nuevo_inicio = fin
-
-        inicio = nuevo_inicio
+        inicio = nuevo_inicio if nuevo_inicio > inicio else fin
 
 
 def procesar_casos_servicio(texto_limpio, id_archivo):
@@ -307,9 +298,70 @@ def procesar_casos_servicio(texto_limpio, id_archivo):
         }
 
 
+def trocear(archivo, categoria, paginas, texto_limpio):
+    """Elige cómo trocear el documento según su tipo."""
+    if categoria == "Dictionary":
+        # El diccionario se separa por viñetas, que necesitan los saltos de línea.
+        return procesar_diccionario("\n".join(paginas), archivo)
+
+    if archivo.startswith("HTM240-HIS-"):
+        return procesar_casos_servicio(texto_limpio, archivo)
+
+    return procesar_documento_tecnico(texto_limpio, archivo)
+
+
 # ============================================================
 # INGESTA DE DOCUMENTOS
 # ============================================================
+
+def indexar_archivo(conn, ruta_completa, archivo, categoria):
+    """Trocea un documento, calcula sus embeddings y lo guarda. Devuelve cuántos fragmentos insertó."""
+    paginas = extraer_paginas_archivo(ruta_completa)
+    texto_limpio, inicios_pagina = unir_paginas(paginas)
+
+    if not texto_limpio:
+        return 0
+
+    insertados = 0
+
+    for chunk in trocear(archivo, categoria, paginas, texto_limpio):
+        vector = embedder.encode(
+            chunk["texto"],
+            convert_to_numpy=True,
+            show_progress_bar=False,
+            normalize_embeddings=True
+        )
+
+        # Los casos de servicio traen su propia versión; el resto se deduce.
+        if "versiones" in chunk:
+            versiones = json.dumps(chunk["versiones"])
+        else:
+            versiones = determinar_versiones(chunk["texto"], chunk["id"])
+
+        # Página en la que empieza el fragmento (el diccionario no la tiene).
+        pagina = pagina_de(chunk["inicio"], inicios_pagina) if "inicio" in chunk else None
+
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO rag_documents
+                (chunk_id, text, category, applicable_versions, embedding, page, section)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                chunk["id"],
+                chunk["texto"],
+                categoria,
+                versiones,
+                vector.astype(np.float32).tobytes(),
+                pagina,
+                chunk.get("seccion"),
+            ),
+        )
+
+        insertados += 1
+
+    return insertados
+
 
 def ejecutar_ingesta():
     if not os.path.isdir(BASE_DIR):
@@ -317,7 +369,6 @@ def ejecutar_ingesta():
         return
 
     conn = inicializar_bd()
-    cursor = conn.cursor()
 
     total_documentos = 0
     total_fragmentos = 0
@@ -334,130 +385,37 @@ def ejecutar_ingesta():
                 if "00_Documentos_sustituidos" not in carpeta
             ]
 
-            nombre_carpeta = os.path.basename(raiz)
-            categoria = determinar_categoria(nombre_carpeta)
+            categoria = determinar_categoria(os.path.basename(raiz))
 
             for archivo in archivos:
 
-                if not archivo.lower().endswith(
-                    (".pdf", ".txt", ".md")
-                ):
+                # Solo formatos soportados; el recopilatorio completo se ignora.
+                if not archivo.lower().endswith((".pdf", ".txt", ".md")):
                     continue
 
-                # Ignorar el recopilatorio completo.
                 if archivo in ARCHIVOS_EXCLUIDOS:
                     continue
-
-                ruta_completa = os.path.join(raiz, archivo)
 
                 print(f"\nProcesando: {archivo}")
 
                 try:
-                    paginas = extraer_paginas_archivo(ruta_completa)
-                    texto_limpio, inicios_pagina = unir_paginas(paginas)
-
-                    if not texto_limpio:
-                        print("[!] El documento no contiene texto.")
-                        continue
-
-                    if categoria == "Dictionary":
-                        # El diccionario se separa por viñetas, que necesitan los saltos de línea.
-                        chunks = procesar_diccionario(
-                            "\n".join(paginas), archivo
-                        )
-                    elif archivo.startswith("HTM240-HIS-"):
-                        chunks = procesar_casos_servicio(
-                            texto_limpio, archivo
-                        )
-                    else:
-                        chunks = procesar_documento_tecnico(
-                            texto_limpio, archivo
-                        )
-
-                    fragmentos_insertados = 0
-
-                    # Procesar cada fragmento sin crear una lista.
-                    for chunk in chunks:
-
-                        texto_chunk = chunk["texto"]
-
-                        if len(texto_chunk) < 20:
-                            continue
-
-                        vector = embedder.encode(
-                            texto_chunk,
-                            convert_to_numpy=True,
-                            show_progress_bar=False,
-                            normalize_embeddings=True
-                        )
-
-                        vector_bytes = vector.astype(
-                            np.float32
-                        ).tobytes()
-
-                        # Los casos de servicio traen su propia versión; el resto se deduce.
-                        if "versiones" in chunk:
-                            versiones = json.dumps(chunk["versiones"])
-                        else:
-                            versiones = determinar_versiones(
-                                texto_chunk, chunk["id"]
-                            )
-
-                        # Página en la que empieza el fragmento (el diccionario no la tiene).
-                        pagina = None
-                        if "inicio" in chunk:
-                            pagina = pagina_de(chunk["inicio"], inicios_pagina)
-
-                        cursor.execute("""
-                            INSERT OR REPLACE INTO rag_documents
-                            (
-                                chunk_id,
-                                text,
-                                category,
-                                applicable_versions,
-                                embedding,
-                                page,
-                                section
-                            )
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
-                        """, (
-                            chunk["id"],
-                            texto_chunk,
-                            categoria,
-                            versiones,
-                            vector_bytes,
-                            pagina,
-                            chunk.get("seccion")
-                        ))
-
-                        fragmentos_insertados += 1
-
-                    # Guardar los resultados de cada documento.
-                    conn.commit()
-
-                    if fragmentos_insertados > 0:
-                        total_documentos += 1
-                        total_fragmentos += fragmentos_insertados
-
-                        print(
-                            f"[+] Procesado: {archivo} -> "
-                            f"{fragmentos_insertados} fragmentos."
-                        )
-                    else:
-                        print(
-                            f"[!] No se generaron fragmentos: {archivo}"
-                        )
-
-                except Exception as e:
-                    # Conservar los fragmentos insertados antes
-                    # del error, si los hubiera.
-                    conn.commit()
-
-                    documentos_con_error += 1
-
-                    print(
-                        f"[!] Error procesando {archivo}: {e}"
+                    fragmentos = indexar_archivo(
+                        conn, os.path.join(raiz, archivo), archivo, categoria
                     )
+                except Exception as e:
+                    documentos_con_error += 1
+                    print(f"[!] Error procesando {archivo}: {e}")
+                else:
+                    if fragmentos > 0:
+                        total_documentos += 1
+                        total_fragmentos += fragmentos
+                        print(f"[+] Procesado: {archivo} -> {fragmentos} fragmentos.")
+                    else:
+                        print(f"[!] No se generaron fragmentos: {archivo}")
+                finally:
+                    # Se guarda cada documento, conservando los fragmentos
+                    # insertados antes de un posible error.
+                    conn.commit()
 
     except KeyboardInterrupt:
         conn.commit()

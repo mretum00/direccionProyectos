@@ -32,27 +32,23 @@ Configuración (backend/config.py -> `from config import settings`, valores en e
 Modelos del contrato de la API: models/schemas.py (ChatResponse, Source, ...).
 """
 
-from typing import Literal, Optional, cast
-from sentence_transformers import SentenceTransformer
-import logging
-import uuid
-
-from config import settings
-
 import json
+import logging
 import os
 import re
 import sqlite3
+import uuid
+from typing import Literal, Optional, cast
+
 import numpy as np
+from sentence_transformers import SentenceTransformer
+
+from config import ENGINE_VERSIONS, settings
 
 logger = logging.getLogger(__name__)
 
 # Modelo de embeddings ya cargado (se rellena la primera vez que se usa).
 _modelo_embeddings = None
-
-# Versiones del motor admitidas.                                  [Fabián]
-# Provisional: están fijas aquí, todavía no se leen de la base de datos.
-VERSIONES_CONOCIDAS = ["V1.0", "V1.1", "V2.0"]
 
 
 # ---------------------------------------------------------------------------
@@ -85,6 +81,12 @@ def _embedding_normalizado(texto: str) -> np.ndarray:
     vector = vector.astype(np.float32)
     # Dividir entre su longitud; el "or 1.0" evita dividir entre 0.
     return vector / (np.linalg.norm(vector) or 1.0)
+
+
+def _documento_de(chunk_id: str) -> str:
+    """Nombre del documento al que pertenece un fragmento: "Manual.pdf_12" -> "Manual.pdf"."""
+    return chunk_id.rsplit("_", 1)[0]
+
 
 def _formatear_historial(historial: list[dict], max_chars: int = 500) -> str:
     """Convierte el historial en texto para meterlo en un prompt.
@@ -131,26 +133,17 @@ def reformular_con_historial(mensaje: str, historial: list[dict]) -> str:
 # ---------------------------------------------------------------------------
 # 1. Validar la consulta y la versión del motor                     [Fabián]
 # ---------------------------------------------------------------------------
-def validar_consulta(mensaje: str, version: str, versiones_conocidas: list[str]) -> tuple[str, Optional[str]]:
-    """Limpia el mensaje y busca la versión entre las conocidas.
+def validar_consulta(mensaje: str, version: str) -> tuple[str, Optional[str]]:
+    """Limpia el mensaje y busca la versión entre las de ENGINE_VERSIONS.
 
     Devuelve (mensaje_limpio, version_canonica). Si la versión está vacía o no
     existe, version_canonica es None y armar_respuesta pedirá aclaración.
+    (Que el mensaje no esté vacío ya lo garantiza ChatRequest.)
     """
-    mensaje_limpio = mensaje.strip()
-
-    if not mensaje_limpio:
-        raise ValueError("El mensaje no puede estar vacío")
-
     # Comparar sin espacios ni mayúsculas: " v2.0 " -> "V2.0".
     version_limpia = "".join(version.split()).upper()
-
-    for conocida in versiones_conocidas:
-        if version_limpia == "".join(conocida.split()).upper():
-            # Se devuelve la versión tal como está escrita en la lista.
-            return mensaje_limpio, conocida
-
-    return mensaje_limpio, None
+    canonica = next((v for v in ENGINE_VERSIONS if "".join(v.split()).upper() == version_limpia), None)
+    return mensaje.strip(), canonica
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +151,7 @@ def validar_consulta(mensaje: str, version: str, versiones_conocidas: list[str])
 # ---------------------------------------------------------------------------
 def traducir_consulta(mensaje: str) -> str:
     try:
-        fragmentos = cargar_fragmentos(str(settings.db_path))
+        fragmentos = cargar_fragmentos()
         vector_mensaje = _embedding_normalizado(mensaje)
 
         terminos_relevantes = []
@@ -218,7 +211,7 @@ def buscar_fragmentos(consulta_tecnica: str, version: str, top_k: int) -> list[d
     Cada resultado es {"chunk_id", "texto", "categoria", "score", "versiones",
     "pagina", "seccion"}, ordenados de mayor a menor score. Lista vacía si no hay ninguno.
     """
-    fragmentos = cargar_fragmentos(str(settings.db_path))
+    fragmentos = cargar_fragmentos()
     vector_pregunta = _embedding_normalizado(consulta_tecnica)
 
     # Los embeddings no distinguen bien un código de otro ("HTM-0142" vs "HTM-0124"),
@@ -257,8 +250,8 @@ def buscar_fragmentos(consulta_tecnica: str, version: str, top_k: int) -> list[d
 # ---------------------------------------------------------------------------
 # 4. Cargar los fragmentos de la base de datos                       [Jorge]
 # ---------------------------------------------------------------------------
-def cargar_fragmentos(ruta_bd: str) -> list[dict]:
-    """Lee todos los fragmentos de la tabla rag_documents.
+def cargar_fragmentos() -> list[dict]:
+    """Lee todos los fragmentos de la tabla rag_documents (BD en settings.db_path).
 
     Se lee la BD en cada llamada (sin caché), así que si se regenera se usa
     siempre la versión actual sin reiniciar el servidor.
@@ -266,10 +259,9 @@ def cargar_fragmentos(ruta_bd: str) -> list[dict]:
     "vector", "pagina", "seccion"}. "pagina" es la página del PDF donde empieza el
     fragmento y "seccion" el código del caso de servicio (None si no aplica).
     """
+    ruta_bd = settings.db_path
     if not os.path.exists(ruta_bd):
-        raise FileNotFoundError(
-            f"No existe la base de datos en {ruta_bd}."
-        )
+        raise FileNotFoundError(f"No existe la base de datos en {ruta_bd}.")
     conn = sqlite3.connect(ruta_bd)
     try:
         filas = conn.execute(
@@ -328,7 +320,7 @@ def construir_prompt(
     bloques_contexto = []
     for f in fragmentos:
         chunk_id = f.get("chunk_id", "Desconocido")
-        documento = chunk_id.rsplit("_", 1)[0] if "_" in chunk_id else chunk_id
+        documento = _documento_de(chunk_id)
         categoria = f.get("categoria", "Manual")
         versiones = ", ".join(f.get("versiones", [])) if f.get("versiones") else "Todas"
         pagina = f.get("pagina")
@@ -393,14 +385,17 @@ REGLAS CRÍTICAS DE PRECISIÓN, VERSIONES Y OBSOLESCENCIA (OBLIGATORIAS):
    - Si preguntan por un dato no documentado de un componente que sí existe (ej. par de apriete en Nm de la TCU CMP-13 o curva de resistencia en ohmios de CMP-14 a 20 °C), identifica primero el componente según el catálogo (HTM240-CAT-001) y aclara que "No hay evidencia suficiente en la documentación" porque el corpus no incluye tablas de pares de apriete ni curvas de resistencia eléctrica, recomendando escalar a soporte.
 
 PROPORCIONALIDAD Y ESTRUCTURA DE SALIDA:
-- En consultas de diagnóstico, averías, testigos, códigos DTC o procedimientos, utiliza estos encabezados en Markdown:
+- Empieza SIEMPRE con un encabezado `### RESUMEN` seguido de 1 o 2 frases cortas (unas 35 palabras como máximo) que den lo esencial: la conclusión o respuesta directa y, si aplica, lo más urgente. No uses viñetas, no cites códigos de procedimientos ni documentos y no repitas el detalle de las secciones siguientes (eso va después).
+- Después del resumen, desarrolla la respuesta con encabezados en Markdown (cada uno en su propia línea, con este nombre exacto y en este orden):
 ### CAUSAS POSIBLES
 ### CRITICIDAD
 ### SEGURIDAD
 ### COMPROBACIONES
 ### PROCEDIMIENTO
 ### FUENTE
-- En consultas directas simples (ej. preguntar solo qué función tiene un componente, qué herramienta usa un paso o cada cuántos km se cambia el fluido) o consultas fuera de alcance/ambiguas, responde de forma directa, completa y concisa a lo preguntado citando la `### FUENTE` (y `### SEGURIDAD` si aplica), SIN inventar pasos de desmontaje que nadie ha pedido ni rellenar secciones vacías con "No consta en la documentación recuperada".
+- En consultas de diagnóstico, averías, testigos, códigos DTC o procedimientos, usa las secciones que tengan contenido real en el contexto documental.
+- En consultas directas simples (ej. preguntar solo qué función tiene un componente, qué herramienta usa un paso o cada cuántos km se cambia el fluido) o consultas fuera de alcance/ambiguas, usa `### RESUMEN` con la respuesta directa, completa y concisa, añade solo las secciones que realmente aporten (`### SEGURIDAD` si aplica) y cita la `### FUENTE`.
+- En ningún caso inventes pasos de desmontaje que nadie ha pedido ni rellenes secciones vacías con "No consta en la documentación recuperada": si una sección no tiene contenido, omítela.
 
 CONTEXTO DOCUMENTAL RECUPERADO:
 {contexto_unido}
@@ -512,9 +507,7 @@ def construir_fuentes(fragmentos: list[dict], version: str) -> list[dict]:
     fuentes = []
     for f in fragmentos:
         chunk_id = f["chunk_id"]
-
-        # "Manual.pdf_12" -> documento "Manual.pdf".
-        documento = chunk_id.rsplit("_", 1)[0] if "_" in chunk_id else chunk_id
+        documento = _documento_de(chunk_id)
 
         # Código del documento a partir del nombre: "HTM240-HIS-001_Casos..." -> "HTM240-HIS-001".
         codigo = re.match(r"HTM240-([A-Z]{3})-\d{3}", documento)
@@ -551,15 +544,11 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
     tal como llegan del frontend.
     """
     # 1. Validar mensaje y versión.
-    mensaje_limpio, version_canonica = validar_consulta(
-        mensaje,
-        version,
-        VERSIONES_CONOCIDAS,
-    )
+    mensaje_limpio, version_canonica = validar_consulta(mensaje, version)
 
     # Versión vacía o desconocida: pedir que la elija, sin llamar al LLM.
     if version_canonica is None:
-        return pedir_aclaracion(version, VERSIONES_CONOCIDAS)
+        return pedir_aclaracion(version)
 
     # 2. Reformular con el historial (para preguntas de seguimiento) y pasar
     #    la pregunta a lenguaje técnico. Ambas versiones solo sirven para buscar.
@@ -642,14 +631,14 @@ def respuesta_sin_evidencia() -> dict:
 # ---------------------------------------------------------------------------
 # 10. Pedir aclaración cuando falta la versión                      [Fabián]
 # ---------------------------------------------------------------------------
-def pedir_aclaracion(version_recibida: str, versiones_disponibles: list[str]) -> dict:
+def pedir_aclaracion(version_recibida: str) -> dict:
     """Pide al usuario que elija la versión del motor. No llama al LLM.
 
-    El frontend usa `clarification.missing_fields` para mostrar un selector
-    con las versiones disponibles.
+    El frontend, al ver `needs_clarification`, muestra el aviso con el botón
+    que abre el selector de motor.
     """
     version_recibida = version_recibida.strip()
-    opciones = ", ".join(versiones_disponibles)
+    opciones = ", ".join(ENGINE_VERSIONS)
 
     # Mensaje distinto si la versión venía rellena pero no existe, o si venía vacía.
     if version_recibida:
@@ -671,16 +660,6 @@ def pedir_aclaracion(version_recibida: str, versiones_disponibles: list[str]) ->
             "content": texto,
         },
         "needs_clarification": True,
-        "clarification": {
-            "message": texto,
-            "missing_fields": [
-                {
-                    "key": "engine_version",
-                    "label": "Versión del motor",
-                    "options": versiones_disponibles,
-                }
-            ],
-        },
         "sources": [],
         "documents_consulted": 0,
     }

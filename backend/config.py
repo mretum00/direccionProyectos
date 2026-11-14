@@ -17,6 +17,11 @@ from dotenv import load_dotenv
 BACKEND_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = BACKEND_DIR.parent
 
+# Versiones del sistema ThermoDrive HTM-240 que cubre la documentación. Es la ÚNICA lista:
+# el generador de la BD, el pipeline RAG y el frontend (GET /api/versions) la leen de aquí.
+# Al añadir una versión, hay que regenerar la BD (backend/db/database_generator.py).
+ENGINE_VERSIONS = ("V1.0", "V1.1", "V2.0")
+
 # Carga explícita del .env de la raíz, sin depender del directorio desde el que
 # se lance uvicorn. Las variables ya definidas en el entorno tienen prioridad.
 load_dotenv(PROJECT_ROOT / ".env")

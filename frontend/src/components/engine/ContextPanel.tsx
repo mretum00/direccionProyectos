@@ -1,7 +1,23 @@
-import { Activity, FileCheck, Gauge } from 'lucide-react';
+import { Activity, FileCheck, Gauge, User } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
+import { ENGINE_NAME, PROFILES } from '@/types/engine';
 import type { Conversation } from '@/types/conversation';
-import type { AssistantResponse } from '@/types/chat';
+import type { AnswerMeta } from '@/types/chat';
+
+const EVIDENCE_BADGES: Record<NonNullable<AnswerMeta['evidence_status']>, { label: string; color: string }> = {
+  high: { label: 'Evidencia: ALTA', color: 'bg-green-500/10 text-green-400' },
+  medium: { label: 'Evidencia: MEDIA', color: 'bg-amber-500/10 text-amber-400' },
+  insufficient: { label: 'Evidencia insuficiente', color: 'bg-red-500/10 text-red-400' },
+};
+
+/** Metadatos de la respuesta más reciente del asistente (recorre desde el final, sin copiar el array). */
+function lastResponse(conversation: Conversation | null): AnswerMeta | undefined {
+  const messages = conversation?.messages ?? [];
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].response) return messages[i].response;
+  }
+  return undefined;
+}
 
 interface ContextPanelProps {
   conversation: Conversation | null;
@@ -11,15 +27,14 @@ export function ContextPanel({ conversation }: ContextPanelProps) {
   const store = useAppStore();
   const sel = store.engineSelection;
 
-  const lastAssistant = conversation
-    ? [...conversation.messages].reverse().find((m) => m.response)
-    : undefined;
-  const response: AssistantResponse | undefined = lastAssistant?.response;
+  const response = lastResponse(conversation);
+  const evidence = response?.evidence_status && EVIDENCE_BADGES[response.evidence_status];
   const hasSources = (response?.sources?.length ?? 0) > 0;
 
   const items = [
-    { icon: Gauge, label: 'Motor', value: sel.engine },
+    { icon: Gauge, label: 'Motor', value: ENGINE_NAME },
     { icon: Activity, label: 'Versión', value: sel.engine_version || 'Sin seleccionar' },
+    { icon: User, label: 'Tipo de usuario', value: PROFILES.find((p) => p.value === sel.profile)?.label ?? 'Sin seleccionar' },
     { icon: FileCheck, label: 'Documentos consultados', value: response?.documents_consulted?.toString() ?? '—' },
   ];
 
@@ -34,7 +49,7 @@ export function ContextPanel({ conversation }: ContextPanelProps) {
               <Icon className="w-4 h-4 text-texto-400" />
             </div>
             <div className="min-w-0">
-              <div className="text-[10px] text-texto-500 uppercase tracking-wide">{label}</div>
+              <div className="text-[11px] text-texto-500 uppercase tracking-wide">{label}</div>
               <div className="text-xs text-texto-200 truncate">{value}</div>
             </div>
           </div>
@@ -43,19 +58,9 @@ export function ContextPanel({ conversation }: ContextPanelProps) {
 
       {/* Evidence status */}
       <div className="pt-3 border-t border-contraste/5">
-        <div className="text-[10px] text-texto-500 uppercase tracking-wide mb-2">Estado</div>
-        {response?.evidence_status ? (
-          <div className={`px-3 py-2 rounded-md text-xs font-medium ${
-            response.evidence_status === 'high'
-              ? 'bg-green-500/10 text-green-400'
-              : response.evidence_status === 'medium'
-              ? 'bg-amber-500/10 text-amber-400'
-              : 'bg-red-500/10 text-red-400'
-          }`}>
-            {response.evidence_status === 'high' && 'Evidencia: ALTA'}
-            {response.evidence_status === 'medium' && 'Evidencia: MEDIA'}
-            {response.evidence_status === 'insufficient' && 'Evidencia insuficiente'}
-          </div>
+        <div className="text-[11px] text-texto-500 uppercase tracking-wide mb-2">Estado</div>
+        {evidence ? (
+          <div className={`px-3 py-2 rounded-md text-xs font-medium ${evidence.color}`}>{evidence.label}</div>
         ) : (
           <div className="px-3 py-2 rounded-md text-xs text-texto-500 bg-contraste/5">
             Sin consulta aún

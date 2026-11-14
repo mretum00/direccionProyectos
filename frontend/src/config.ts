@@ -17,9 +17,7 @@ export const config = {
   remoteConversations: flag(env.VITE_REMOTE_CONVERSATIONS),
   /** Activa el botón de subida de PDF en la pantalla de documentación. */
   enableDocumentUpload: flag(env.VITE_ENABLE_DOCUMENT_UPLOAD),
-  /** Motor preseleccionado (debe existir en ENGINES). Vacío = primero de la lista. */
-  defaultEngine: (env.VITE_DEFAULT_ENGINE ?? '').trim(),
-  /** Versión preseleccionada (debe existir para ese motor). Vacío = sin seleccionar. */
+  /** Versión preseleccionada al abrir la app (debe ser una de GET /api/versions). Vacío = sin seleccionar. */
   defaultEngineVersion: (env.VITE_DEFAULT_ENGINE_VERSION ?? '').trim(),
   /** El contrato de la API fija en 6 los mensajes previos que viajan en `history`. */
   chatHistoryLimit: 6,

@@ -56,7 +56,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         ) : (
           grouped.map(({ label, items }) => (
             <div key={label} className="mb-4">
-              <div className="px-2 py-1.5 text-[10px] font-semibold text-texto-500 uppercase tracking-wider">
+              <div className="px-2 py-1.5 text-[11px] font-semibold text-texto-500 uppercase tracking-wider">
                 {label}
               </div>
               {items.map((conv) => (

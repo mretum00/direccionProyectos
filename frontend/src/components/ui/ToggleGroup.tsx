@@ -21,7 +21,7 @@ export function ToggleGroup<T extends string>({ options, value, onChange }: Togg
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(option.value)}
-            className={`flex-1 py-2 rounded-md text-sm font-medium transition-colors ${
+            className={`flex-1 py-1.5 rounded-md text-xs font-medium transition-colors ${
               selected
                 ? 'bg-marca-500/15 text-marca-400 border border-marca-500/30'
                 : 'bg-contraste/5 text-texto-300 border border-contraste/5 hover:bg-contraste/10'

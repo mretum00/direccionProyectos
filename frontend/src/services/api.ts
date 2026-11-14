@@ -13,6 +13,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = init.body instanceof FormData ? undefined : { 'Content-Type': 'application/json' };
   const response = await fetch(`${config.apiUrl}${path}`, { ...init, headers });
   if (!response.ok) throw new Error(`Error ${response.status} en ${path}`);
+  // 204 No Content (guardar y borrar conversaciones): no hay cuerpo que leer.
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -28,6 +30,12 @@ export const api = {
       throw new Error('Respuesta inválida del servidor: falta message.content');
     }
     return reply;
+  },
+
+  /** GET /api/versions: versiones del sistema que admite el backend. */
+  async listVersions(): Promise<string[]> {
+    const data = await request<{ versions: string[] }>('/api/versions');
+    return data.versions;
   },
 
   /** GET /api/documents */
@@ -50,12 +58,12 @@ export const api = {
   },
 
   /** PUT /api/conversations: la crea si no existe y la reemplaza si ya existe. */
-  async saveConversation(conversation: Conversation): Promise<void> {
-    await request('/api/conversations', { method: 'PUT', body: JSON.stringify(conversation) });
+  saveConversation(conversation: Conversation): Promise<void> {
+    return request<void>('/api/conversations', { method: 'PUT', body: JSON.stringify(conversation) });
   },
 
   /** DELETE /api/conversations/{id} */
-  async deleteConversation(id: string): Promise<void> {
-    await request(`/api/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  deleteConversation(id: string): Promise<void> {
+    return request<void>(`/api/conversations/${encodeURIComponent(id)}`, { method: 'DELETE' });
   },
 };

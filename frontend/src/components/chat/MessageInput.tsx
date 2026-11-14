@@ -4,18 +4,15 @@ import { Send, Square } from 'lucide-react';
 const MAX_TEXTAREA_HEIGHT_PX = 120;
 
 interface MessageInputProps {
+  /** false mientras falte versión o tipo de usuario: el placeholder lo indica y enviar abre el selector. */
+  ready: boolean;
   loading: boolean;
-  onSend: (text: string) => void;
+  /** Devuelve false si no se ha enviado (el texto se conserva). */
+  onSend: (text: string) => boolean;
   onCancel: () => void;
-  placeholder?: string;
 }
 
-export function MessageInput({
-  loading,
-  onSend,
-  onCancel,
-  placeholder = 'Escribe tu consulta técnica…',
-}: MessageInputProps) {
+export function MessageInput({ ready, loading, onSend, onCancel }: MessageInputProps) {
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -34,8 +31,7 @@ export function MessageInput({
   function handleSubmit() {
     const trimmed = text.trim();
     if (!trimmed || loading) return;
-    onSend(trimmed);
-    setText('');
+    if (onSend(trimmed)) setText('');
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
@@ -54,7 +50,7 @@ export function MessageInput({
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={placeholder}
+            placeholder={ready ? 'Escribe tu consulta técnica…' : 'Elige versión y tipo de usuario para empezar…'}
             rows={1}
             readOnly={loading}
             className="flex-1 bg-transparent text-sm leading-5 py-1.5 text-texto placeholder-texto-500 outline-none resize-none read-only:opacity-50"
@@ -81,7 +77,7 @@ export function MessageInput({
             </button>
           )}
         </div>
-        <p className="text-[10px] text-texto-600 text-center mt-1.5">
+        <p className="text-[11px] text-texto-600 text-center mt-1.5">
           Enter para enviar · Shift+Enter para salto de línea
         </p>
       </div>

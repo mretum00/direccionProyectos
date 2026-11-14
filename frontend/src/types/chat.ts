@@ -1,6 +1,6 @@
-export type Role = 'user' | 'assistant';
+type Role = 'user' | 'assistant';
 
-export type EvidenceStatus = 'high' | 'medium' | 'insufficient';
+type EvidenceStatus = 'high' | 'medium' | 'insufficient';
 
 export type SourceType =
   | 'manual'
@@ -17,27 +17,15 @@ export interface ChatMessage {
   role: Role;
   content: string;
   created_at?: string;
-  response?: AssistantResponse;
+  /** Solo en los mensajes del asistente: evidencia, fuentes... (el texto ya va en `content`). */
+  response?: AnswerMeta;
 }
 
 export interface ChatRequest {
-  conversation_id: string;
   message: string;
-  engine: string;
   engine_version: string;
   profile: Profile;
   history: { role: Role; content: string }[];
-}
-
-export interface ClarificationMissingField {
-  key: string;
-  label: string;
-  options?: string[];
-}
-
-export interface Clarification {
-  message?: string;
-  missing_fields: ClarificationMissingField[];
 }
 
 export interface Source {
@@ -46,17 +34,18 @@ export interface Source {
   source_type: SourceType;
   section?: string;
   page?: number;
-  engine?: string;
   engine_version?: string;
   excerpt?: string;
-  url?: string;
 }
 
+/** Respuesta de POST /api/chat. */
 export interface AssistantResponse {
-  message: { id: string; role: 'assistant'; content: string };
+  message: { id: string; content: string };
   evidence_status?: EvidenceStatus;
   needs_clarification?: boolean;
   documents_consulted?: number;
-  clarification?: Clarification;
   sources?: Source[];
 }
+
+/** La respuesta sin el texto: es lo que se guarda en cada mensaje, para no duplicar el contenido. */
+export type AnswerMeta = Omit<AssistantResponse, 'message'>;

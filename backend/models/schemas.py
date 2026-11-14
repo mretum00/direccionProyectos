@@ -1,7 +1,7 @@
 """Modelos Pydantic del contrato API (ver docs/API_CONTRACT.md)."""
 
 from enum import Enum
-from typing import List, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -37,18 +37,19 @@ class DocumentStatus(str, Enum):
 # --- Chat -------------------------------------------------------------------
 
 
+Role = Literal["user", "assistant"]
+
+
 class HistoryItem(BaseModel):
-    role: str
+    role: Role
     content: str
 
 
 class ChatRequest(BaseModel):
-    conversation_id: str = ""
     message: str
-    engine: str = ""
     engine_version: str = ""
-    profile: Profile = Profile.mechanic
-    history: List[HistoryItem] = Field(default_factory=list)
+    profile: Profile  # obligatorio: sin tipo de usuario la petición se rechaza (422)
+    history: list[HistoryItem] = Field(default_factory=list)
 
     @field_validator("message")
     @classmethod
@@ -58,48 +59,35 @@ class ChatRequest(BaseModel):
             raise ValueError("El mensaje no puede estar vacío")
         return value
 
-    @field_validator("engine", "engine_version")
-    @classmethod
-    def _strip(cls, value: str) -> str:
-        return value.strip()
-
 
 class MessageResponse(BaseModel):
     id: str
-    role: str = "assistant"
     content: str
-
-
-class ClarificationField(BaseModel):
-    key: str
-    label: str
-    options: Optional[List[str]] = None
-
-
-class Clarification(BaseModel):
-    message: str = ""
-    missing_fields: List[ClarificationField] = Field(default_factory=list)
 
 
 class Source(BaseModel):
     id: str
     document: str
     source_type: SourceType
-    section: Optional[str] = None
-    page: Optional[int] = None
-    engine: Optional[str] = None
-    engine_version: Optional[str] = None
-    excerpt: Optional[str] = None
-    url: Optional[str] = None
+    section: str | None = None
+    page: int | None = None
+    engine_version: str | None = None
+    excerpt: str | None = None
 
 
 class ChatResponse(BaseModel):
     message: MessageResponse
-    evidence_status: Optional[EvidenceStatus] = None
+    evidence_status: EvidenceStatus | None = None
     needs_clarification: bool = False
-    documents_consulted: Optional[int] = None
-    clarification: Optional[Clarification] = None
-    sources: Optional[List[Source]] = None
+    documents_consulted: int | None = None
+    sources: list[Source] | None = None
+
+
+# --- Versiones --------------------------------------------------------------
+
+
+class VersionsResponse(BaseModel):
+    versions: list[str]
 
 
 # --- Documentos -------------------------------------------------------------
@@ -109,7 +97,6 @@ class TechnicalDocument(BaseModel):
     id: str
     filename: str
     type: SourceType
-    engine: str
     engine_version: str
     pages: int
     uploaded_at: str
@@ -117,7 +104,7 @@ class TechnicalDocument(BaseModel):
 
 
 class DocumentsListResponse(BaseModel):
-    documents: List[TechnicalDocument] = Field(default_factory=list)
+    documents: list[TechnicalDocument] = Field(default_factory=list)
 
 
 # --- Conversaciones ---------------------------------------------------------
@@ -125,10 +112,10 @@ class DocumentsListResponse(BaseModel):
 
 class ConversationMessage(BaseModel):
     id: str
-    role: str
+    role: Role
     content: str
-    created_at: Optional[str] = None
-    response: Optional[dict] = None
+    created_at: str | None = None
+    response: dict | None = None
 
 
 class Conversation(BaseModel):
@@ -137,11 +124,11 @@ class Conversation(BaseModel):
     created_at: str
     updated_at: str
     favorite: bool = False
-    engine: str = ""
     engine_version: str = ""
-    profile: Profile = Profile.mechanic
-    messages: List[ConversationMessage] = Field(default_factory=list)
+    # Vacío mientras el usuario aún no ha elegido tipo de usuario (conversación sin mensajes).
+    profile: Profile | Literal[""] = ""
+    messages: list[ConversationMessage] = Field(default_factory=list)
 
 
 class ConversationsListResponse(BaseModel):
-    conversations: List[Conversation] = Field(default_factory=list)
+    conversations: list[Conversation] = Field(default_factory=list)

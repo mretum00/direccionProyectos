@@ -6,8 +6,7 @@ export interface Conversation {
   created_at: string;
   updated_at: string;
   favorite: boolean;
-  engine: string;
   engine_version: string;
-  profile: Profile;
+  profile: Profile | '';
   messages: ChatMessage[];
 }

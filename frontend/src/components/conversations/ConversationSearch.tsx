@@ -4,7 +4,7 @@ import { Modal } from '@/components/ui/Modal';
 import { useConversations } from '@/hooks/useConversations';
 import { relativeDate } from '@/utils/dateUtils';
 import { toPlainPreview } from '@/utils/text';
-import { ENGINES } from '@/types/engine';
+import { useAppStore } from '@/store/appStore';
 
 interface ConversationSearchProps {
   open: boolean;
@@ -12,6 +12,7 @@ interface ConversationSearchProps {
 }
 
 export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
+  const { versions } = useAppStore();
   const { searchConversations, selectConversation } = useConversations();
   const [query, setQuery] = useState('');
   const [engineVersion, setEngineVersion] = useState('');
@@ -29,7 +30,8 @@ export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
     });
   }, [query, engineVersion, favoriteOnly, dateFrom, dateTo, searchConversations]);
 
-  const versions = ENGINES[0]?.versions ?? [];
+  const lowerQuery = query.toLowerCase();
+  const hasFilters = Boolean(query || engineVersion || favoriteOnly || dateFrom || dateTo);
 
   function handleSelect(id: string) {
     selectConversation(id);
@@ -76,18 +78,18 @@ export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
         {showFilters && (
           <div className="grid grid-cols-2 gap-3 p-3 bg-contraste/5 rounded-lg">
             <div>
-              <label className="block text-[10px] text-texto-500 mb-1">Versión</label>
+              <label className="block text-[11px] text-texto-500 mb-1">Versión</label>
               <select
                 value={engineVersion}
                 onChange={(e) => setEngineVersion(e.target.value)}
                 className="w-full bg-fondo border border-contraste/10 rounded-md px-2.5 py-1.5 text-xs text-texto outline-none"
               >
                 <option value="">Todas</option>
-                {versions.map((v) => <option key={v.value} value={v.value}>{v.label}</option>)}
+                {versions.map((v) => <option key={v} value={v}>{v}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-[10px] text-texto-500 mb-1">Favoritas</label>
+              <label className="block text-[11px] text-texto-500 mb-1">Favoritas</label>
               <button
                 onClick={() => setFavoriteOnly((v) => !v)}
                 className={`w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs border transition-colors ${
@@ -100,7 +102,7 @@ export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
               </button>
             </div>
             <div>
-              <label className="block text-[10px] text-texto-500 mb-1">Desde</label>
+              <label className="block text-[11px] text-texto-500 mb-1">Desde</label>
               <input
                 type="date"
                 value={dateFrom}
@@ -109,7 +111,7 @@ export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
               />
             </div>
             <div>
-              <label className="block text-[10px] text-texto-500 mb-1">Hasta</label>
+              <label className="block text-[11px] text-texto-500 mb-1">Hasta</label>
               <input
                 type="date"
                 value={dateTo}
@@ -126,7 +128,7 @@ export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
             <div className="text-center py-8">
               <Calendar className="w-8 h-8 text-texto-700 mx-auto mb-2" />
               <p className="text-sm text-texto-500">No se encontraron conversaciones</p>
-              {(query || engineVersion || favoriteOnly || dateFrom || dateTo) && (
+              {hasFilters && (
                 <button onClick={clearAll} className="text-xs text-marca-400 hover:text-marca-300 mt-2">
                   Limpiar filtros
                 </button>
@@ -135,7 +137,7 @@ export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
           ) : (
             results.map((conv) => {
               const matchSnippet = query
-                ? conv.messages.find((m) => m.content.toLowerCase().includes(query.toLowerCase()))
+                ? conv.messages.find((m) => m.content.toLowerCase().includes(lowerQuery))
                 : undefined;
               return (
                 <button
@@ -148,10 +150,10 @@ export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
                       {conv.favorite && <Star className="w-3 h-3 text-amber-400 inline mr-1 fill-amber-400" />}
                       {conv.title}
                     </span>
-                    <span className="text-[10px] text-texto-500 flex-shrink-0">{relativeDate(conv.updated_at)}</span>
+                    <span className="text-[11px] text-texto-500 flex-shrink-0">{relativeDate(conv.updated_at)}</span>
                   </div>
                   {conv.engine_version && (
-                    <span className="text-[10px] text-marca-400/70">{conv.engine} · {conv.engine_version}</span>
+                    <span className="text-[11px] text-marca-400">{conv.engine_version}</span>
                   )}
                   {matchSnippet && (
                     <p className="text-xs text-texto-500 mt-1 line-clamp-2">
@@ -164,7 +166,7 @@ export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
           )}
         </div>
 
-        {(query || engineVersion || favoriteOnly || dateFrom || dateTo) && results.length > 0 && (
+        {hasFilters && results.length > 0 && (
           <button onClick={clearAll} className="text-xs text-texto-400 hover:text-texto-200">
             Limpiar filtros
           </button>

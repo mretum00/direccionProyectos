@@ -6,7 +6,6 @@ export interface TechnicalDocument {
   id: string;
   filename: string;
   type: SourceType;
-  engine: string;
   engine_version: string;
   pages: number;
   uploaded_at: string;

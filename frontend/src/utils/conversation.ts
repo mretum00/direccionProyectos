@@ -4,7 +4,7 @@ import { uuid } from './uuid';
 
 const NEW_CONVERSATION_TITLE = 'Nueva conversación';
 
-/** Crea una conversación vacía con el motor/versión/perfil actualmente seleccionados. */
+/** Crea una conversación vacía con la versión y el perfil actualmente seleccionados. */
 export function buildConversation(selection: EngineSelection): Conversation {
   const now = new Date().toISOString();
   return {
@@ -13,7 +13,6 @@ export function buildConversation(selection: EngineSelection): Conversation {
     created_at: now,
     updated_at: now,
     favorite: false,
-    engine: selection.engine,
     engine_version: selection.engine_version,
     profile: selection.profile,
     messages: [],

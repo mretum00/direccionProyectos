@@ -1,18 +1,9 @@
 import { useState } from 'react';
-import { FileText, BookOpen, GitBranch, History, Shield, BookMarked, Loader2, Upload, AlertCircle } from 'lucide-react';
-import type { SourceType } from '@/types/chat';
+import { Loader2, Upload, AlertCircle } from 'lucide-react';
 import type { TechnicalDocument, DocumentStatus } from '@/types/document';
 import { api } from '@/services/api';
 import { config } from '@/config';
-
-const TYPE_CONFIG: Record<SourceType, { label: string; icon: typeof FileText }> = {
-  manual: { label: 'Manual técnico', icon: FileText },
-  dtc_catalog: { label: 'Catálogo DTC', icon: BookOpen },
-  decision_tree: { label: 'Árbol de decisión', icon: GitBranch },
-  historical_case: { label: 'Casos históricos', icon: History },
-  safety_manual: { label: 'Manual de seguridad', icon: Shield },
-  glossary: { label: 'Glosario', icon: BookMarked },
-};
+import { SOURCE_TYPES } from '@/utils/sourceTypes';
 
 const STATUS_CONFIG: Record<DocumentStatus, { label: string; color: string }> = {
   processed: { label: 'Procesado', color: 'text-green-400 bg-green-500/10' },
@@ -79,7 +70,7 @@ export function DocumentList({ documents, loading, endpointAvailable }: Document
 
       <div className="grid grid-cols-1 gap-2">
         {documents.map((doc) => {
-          const typeConfig = TYPE_CONFIG[doc.type] ?? TYPE_CONFIG.manual;
+          const typeConfig = SOURCE_TYPES[doc.type] ?? SOURCE_TYPES.manual;
           const statusConfig = STATUS_CONFIG[doc.status] ?? STATUS_CONFIG.pending;
           const Icon = typeConfig.icon;
           return (
@@ -89,14 +80,14 @@ export function DocumentList({ documents, loading, endpointAvailable }: Document
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-texto-200 truncate">{doc.filename}</div>
-                <div className="flex items-center gap-2 text-[10px] text-texto-500 mt-0.5">
+                <div className="flex items-center gap-2 text-[11px] text-texto-500 mt-0.5">
                   <span>{typeConfig.label}</span>
-                  <span>· {doc.engine} {doc.engine_version}</span>
+                  <span>· {doc.engine_version}</span>
                   <span>· {doc.pages} pág.</span>
                   <span>· {new Date(doc.uploaded_at).toLocaleDateString('es-ES')}</span>
                 </div>
               </div>
-              <span className={`text-[10px] px-2 py-0.5 rounded ${statusConfig.color} flex-shrink-0`}>
+              <span className={`text-[11px] px-2 py-0.5 rounded ${statusConfig.color} flex-shrink-0`}>
                 {statusConfig.label}
               </span>
             </div>
