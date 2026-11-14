@@ -1,6 +1,6 @@
 """
 ARSOFT AI — Backend (FastAPI).
-Los endpoints viven en controllers/ y la lógica RAG en services/.
+Los endpoints viven en routers/ (un archivo por tema) y la lógica RAG en services/.
 Toda la configuración procede de variables de entorno (ver config.py y .env.example).
 
 Ejecutar desde esta carpeta (respeta API_HOST / API_PORT del .env):
@@ -16,18 +16,12 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import APP_VERSION, settings
-from controllers import (
-    chat_router,
-    conversations_router,
-    documents_router,
-    health_router,
-    sources_router,
-)
+from config import settings
+from routers import chat, conversations, documents
 
 logging.basicConfig(level=settings.log_level, format="%(asctime)s - %(levelname)s - %(message)s")
 
-app = FastAPI(title="ARSOFT AI Backend", version=APP_VERSION)
+app = FastAPI(title="ARSOFT AI Backend")
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,11 +31,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(health_router)
-app.include_router(chat_router)
-app.include_router(documents_router)
-app.include_router(sources_router)
-app.include_router(conversations_router)
+app.include_router(chat.router)
+app.include_router(documents.router)
+app.include_router(conversations.router)
 
 
 if __name__ == "__main__":

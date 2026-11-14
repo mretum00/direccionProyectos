@@ -3,7 +3,7 @@
 import json
 import sqlite3
 from contextlib import contextmanager
-from typing import Iterator, Optional
+from typing import Iterator
 
 from config import settings
 
@@ -33,17 +33,11 @@ def list_conversations() -> list[dict]:
     return [json.loads(data) for (data,) in rows]
 
 
-def get_conversation(conv_id: str) -> Optional[dict]:
-    with _connect() as conn:
-        row = conn.execute("SELECT data FROM conversations WHERE id = ?", (conv_id,)).fetchone()
-    return json.loads(row[0]) if row else None
-
-
 def save_conversation(conversation: dict) -> None:
     with _connect() as conn:
         conn.execute(
             "INSERT OR REPLACE INTO conversations (id, updated_at, data) VALUES (?, ?, ?)",
-            (conversation["id"], conversation.get("updated_at", ""), json.dumps(conversation, ensure_ascii=False)),
+            (conversation["id"], conversation["updated_at"], json.dumps(conversation, ensure_ascii=False)),
         )
 
 

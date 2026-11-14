@@ -1,5 +1,5 @@
-import type { EngineSystem, Profile } from './chat';
-export type { EngineSystem, Profile };
+import type { Profile } from './chat';
+export type { Profile };
 
 export interface EngineVersion {
   label: string;
@@ -22,13 +22,6 @@ export const ENGINES: EngineOption[] = [
   },
 ];
 
-export const SYSTEMS: { label: string; value: EngineSystem }[] = [
-  { label: 'Auto', value: null },
-  { label: 'CIR-01 Combustión', value: 'CIR-01' },
-  { label: 'CIR-02 Alta tensión', value: 'CIR-02' },
-  { label: 'CIR-03 Electrónica', value: 'CIR-03' },
-];
-
 export const PROFILES: { label: string; value: Profile }[] = [
   { label: 'Mecánico', value: 'mechanic' },
   { label: 'Usuario', value: 'user' },
@@ -37,6 +30,5 @@ export const PROFILES: { label: string; value: Profile }[] = [
 export interface EngineSelection {
   engine: string;
   engine_version: string;
-  system: EngineSystem;
   profile: Profile;
 }

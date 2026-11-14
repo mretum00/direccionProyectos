@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { FileText, BookOpen, GitBranch, History, Shield, BookMarked, Loader2, Upload, AlertCircle } from 'lucide-react';
-import type { TechnicalDocument, DocumentType, DocumentStatus } from '@/types/document';
+import type { SourceType } from '@/types/chat';
+import type { TechnicalDocument, DocumentStatus } from '@/types/document';
 import { api } from '@/services/api';
 import { config } from '@/config';
 
-const TYPE_CONFIG: Record<DocumentType, { label: string; icon: typeof FileText }> = {
+const TYPE_CONFIG: Record<SourceType, { label: string; icon: typeof FileText }> = {
   manual: { label: 'Manual técnico', icon: FileText },
   dtc_catalog: { label: 'Catálogo DTC', icon: BookOpen },
   decision_tree: { label: 'Árbol de decisión', icon: GitBranch },

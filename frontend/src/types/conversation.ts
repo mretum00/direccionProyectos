@@ -1,4 +1,4 @@
-import type { ChatMessage, EngineSystem, Profile } from './chat';
+import type { ChatMessage, Profile } from './chat';
 
 export interface Conversation {
   id: string;
@@ -8,7 +8,6 @@ export interface Conversation {
   favorite: boolean;
   engine: string;
   engine_version: string;
-  system: EngineSystem;
   profile: Profile;
   messages: ChatMessage[];
 }

@@ -18,7 +18,6 @@ function buildDefaultSelection(): EngineSelection {
   return {
     engine: engine.name,
     engine_version: hasVersion ? config.defaultEngineVersion : '',
-    system: null,
     profile: 'mechanic',
   };
 }

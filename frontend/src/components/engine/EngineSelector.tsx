@@ -2,7 +2,7 @@ import { useRef, useEffect } from 'react';
 import { Settings2, ChevronDown, AlertTriangle } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { ToggleGroup } from '@/components/ui/ToggleGroup';
-import { ENGINES, PROFILES, SYSTEMS, type EngineSelection, type EngineSystem } from '@/types/engine';
+import { ENGINES, PROFILES, type EngineSelection } from '@/types/engine';
 
 const SELECT_CLASS =
   'w-full bg-fondo border border-contraste/10 rounded-md px-3 py-2 text-sm text-texto outline-none focus:border-marca-500/50';
@@ -37,7 +37,6 @@ export function EngineSelector() {
           {sel.engine}
           {sel.engine_version && <span className="text-texto-400"> · {sel.engine_version}</span>}
         </span>
-        {sel.system && <span className="hidden lg:inline text-marca-400"> · {sel.system}</span>}
         <ChevronDown className="w-3.5 h-3.5 text-texto-500" />
       </button>
 
@@ -73,19 +72,6 @@ export function EngineSelector() {
                 Selecciona la versión para obtener respuestas
               </p>
             )}
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-medium text-texto-400 mb-1.5">Sistema</label>
-            <select
-              value={sel.system ?? ''}
-              onChange={(e) => update({ system: (e.target.value || null) as EngineSystem })}
-              className={SELECT_CLASS}
-            >
-              {SYSTEMS.map((s) => (
-                <option key={s.label} value={s.value ?? ''}>{s.label}</option>
-              ))}
-            </select>
           </div>
 
           <div>

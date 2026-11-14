@@ -1,4 +1,4 @@
-import { Activity, FileCheck, Gauge, ShieldCheck } from 'lucide-react';
+import { Activity, FileCheck, Gauge } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import type { Conversation } from '@/types/conversation';
 import type { AssistantResponse } from '@/types/chat';
@@ -20,7 +20,6 @@ export function ContextPanel({ conversation }: ContextPanelProps) {
   const items = [
     { icon: Gauge, label: 'Motor', value: sel.engine },
     { icon: Activity, label: 'Versión', value: sel.engine_version || 'Sin seleccionar' },
-    { icon: ShieldCheck, label: 'Sistema', value: sel.system || 'Auto' },
     { icon: FileCheck, label: 'Documentos consultados', value: response?.documents_consulted?.toString() ?? '—' },
   ];
 

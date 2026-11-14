@@ -36,7 +36,7 @@ cd backend
 python main.py
 ```
 
-El backend queda en http://localhost:8000. Compruébalo en http://localhost:8000/api/health.
+El backend queda en http://localhost:8000. Compruébalo en http://localhost:8000/docs.
 
 ## 2. Frontend (terminal 2)
 

@@ -54,7 +54,6 @@ export function useChat() {
       updated_at: now,
       engine: selection.engine,
       engine_version: selection.engine_version,
-      system: selection.system,
       profile: selection.profile,
       title: conversation.messages.length === 0 ? text.slice(0, 50) : conversation.title,
     };
@@ -73,7 +72,6 @@ export function useChat() {
           message: text,
           engine: selection.engine,
           engine_version: selection.engine_version,
-          system: selection.system,
           profile: selection.profile,
           history,
         },

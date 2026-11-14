@@ -57,12 +57,6 @@ export function SourceModal({ source, onClose }: SourceModalProps) {
               <p className="text-marca-400">{source.engine_version}</p>
             </div>
           )}
-          {source.system && (
-            <div>
-              <span className="text-texto-500">Sistema</span>
-              <p className="text-texto-200">{source.system}</p>
-            </div>
-          )}
         </div>
 
         {source.excerpt && (

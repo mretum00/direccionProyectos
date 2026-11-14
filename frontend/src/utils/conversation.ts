@@ -2,7 +2,7 @@ import type { Conversation } from '@/types/conversation';
 import type { EngineSelection } from '@/types/engine';
 import { uuid } from './uuid';
 
-export const NEW_CONVERSATION_TITLE = 'Nueva conversación';
+const NEW_CONVERSATION_TITLE = 'Nueva conversación';
 
 /** Crea una conversación vacía con el motor/versión/perfil actualmente seleccionados. */
 export function buildConversation(selection: EngineSelection): Conversation {
@@ -15,7 +15,6 @@ export function buildConversation(selection: EngineSelection): Conversation {
     favorite: false,
     engine: selection.engine,
     engine_version: selection.engine_version,
-    system: selection.system,
     profile: selection.profile,
     messages: [],
   };

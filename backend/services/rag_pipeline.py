@@ -4,7 +4,7 @@ Proceso de consulta RAG de ThermoDrive.
 Recibe la pregunta del usuario, busca en la documentación técnica los fragmentos
 más relevantes para su versión del motor y pide al LLM una respuesta basada
 solo en esos fragmentos. Lo usa el endpoint POST /api/chat
-(controllers/chat_controller.py llama a `armar_respuesta`).
+(routers/chat.py llama a `armar_respuesta`).
 
 Autores (reparto del equipo):
   Fabián  (Persona A, integrador)        -> 1. validar_consulta, 8. armar_respuesta, 10. pedir_aclaracion

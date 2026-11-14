@@ -9,13 +9,11 @@
 
 | Endpoint | Método | Obligatorio | Uso |
 |----------|--------|-------------|-----|
-| `/api/health` | GET | Sí | Comprobar conexión |
 | `/api/chat` | POST | Sí (imprescindible) | Consulta RAG |
 | `/api/documents` | GET | No | Listar documentación e indexación |
 | `/api/documents` | POST | No (tras flag) | Subir PDF |
-| `/api/sources/{id}` | GET | No | Fragmento o PDF/página de una fuente |
-| `/api/conversations` | POST/GET | No | Solo si `VITE_REMOTE_CONVERSATIONS=true` |
-| `/api/conversations/{id}` | GET/PATCH/DELETE | No | Solo si `VITE_REMOTE_CONVERSATIONS=true` |
+| `/api/conversations` | GET/PUT | No | Solo si `VITE_REMOTE_CONVERSATIONS=true` |
+| `/api/conversations/{id}` | DELETE | No | Solo si `VITE_REMOTE_CONVERSATIONS=true` |
 
 > Si un endpoint opcional no existe o devuelve 404/501, la interfaz degrada con elegancia (estado informativo), sin romperse.
 
@@ -33,7 +31,6 @@
   "message": "Se enciende el testigo de temperatura y huele a quemado",
   "engine": "ThermoDrive HTM-240",
   "engine_version": "V2.0",
-  "system": "CIR-01",
   "profile": "mechanic",
   "history": [
     { "role": "user", "content": "..." },
@@ -43,7 +40,6 @@
 ```
 
 - `engine` y `engine_version`: motor y versión seleccionados. Pueden ir vacíos.
-- `system`: opcional (`CIR-01`, `CIR-02`, `CIR-03`) o ausente.
 - `profile`: `"mechanic"` (lenguaje técnico) o `"user"` (lenguaje sencillo).
 - `history`: últimos 6 mensajes (el backend es sin estado).
 
@@ -58,27 +54,7 @@
   },
   "evidence_status": "high | medium | insufficient",
   "needs_clarification": false,
-  "confidence": 0.92,
   "documents_consulted": 3,
-  "interpreted_query": {
-    "original": "huele a quemado",
-    "technical_terms": ["sobrecalentamiento", "..."]
-  },
-  "detected_dtc": [
-    { "code": "P0217", "description": "..." }
-  ],
-  "sections": {
-    "diagnosis": "",
-    "possible_causes": [],
-    "criticality": "low | medium | high | critical",
-    "safety": [
-      { "level": "warning | critical", "text": "" }
-    ],
-    "ppe": [],
-    "checks": [],
-    "decision_tree_id": "",
-    "procedure": ""
-  },
   "clarification": {
     "message": "",
     "missing_fields": [
@@ -94,13 +70,9 @@
       "page": 0,
       "engine": "ThermoDrive HTM-240",
       "engine_version": "V2.0",
-      "system": "CIR-01",
       "excerpt": "",
       "url": ""
     }
-  ],
-  "discarded_sources": [
-    { "document": "", "reason": "obsolete_version | version_mismatch", "detail": "" }
   ]
 }
 ```
@@ -108,24 +80,15 @@
 ### Reglas de robustez (OBLIGATORIAS)
 
 - Solo `message.content` es obligatorio. Todo lo demás es opcional.
-- Si no llega `sections`, se muestra `message.content` junto con las fuentes.
+- Se muestra `message.content` junto con las fuentes (`sources`), si las hay.
 - Nunca inventar datos que el backend no envíe.
 - `evidence_status`: `high` → «Evidencia: ALTA», `medium` → «Evidencia: MEDIA», `insufficient` → aviso destacado. Si no llega, no se muestra.
 - `needs_clarification = true` → tarjeta de aclaración con `clarification.missing_fields`.
-- `discarded_sources` → aviso desplegable.
 - Errores de red: «No se ha podido conectar con el servidor». Errores HTTP: «No se ha podido procesar la consulta», con botón Reintentar.
 
 ---
 
-## 3. GET /api/health
-
-```json
-{ "status": "ok", "version": "1.0.0" }
-```
-
----
-
-## 4. GET /api/documents
+## 3. GET /api/documents
 
 ```json
 {
@@ -146,24 +109,13 @@
 
 ---
 
-## 5. POST /api/documents
+## 4. POST /api/documents
 
 Subida multipart de un PDF. Devuelve el documento creado con estado `pending`.
 
 ---
 
-## 6. GET /api/sources/{id}
-
-```json
-{
-  "excerpt": "Fragmento recuperado...",
-  "url": "https://..."
-}
-```
-
----
-
-## 7. Conversaciones (solo si VITE_REMOTE_CONVERSATIONS=true)
+## 5. Conversaciones (solo si VITE_REMOTE_CONVERSATIONS=true)
 
 ### Modelo
 
@@ -176,7 +128,6 @@ Subida multipart de un PDF. Devuelve el documento creado con estado `pending`.
   "favorite": false,
   "engine": "ThermoDrive HTM-240",
   "engine_version": "V2.0",
-  "system": null,
   "profile": "mechanic",
   "messages": [
     {
@@ -190,33 +141,31 @@ Subida multipart de un PDF. Devuelve el documento creado con estado `pending`.
 }
 ```
 
-- `POST /api/conversations` — crear
-- `GET /api/conversations` — listar
-- `GET /api/conversations/{id}` — recuperar
-- `PUT /api/conversations` — actualizar (body = conversación completa)
-- `DELETE /api/conversations/{id}` — eliminar
+- `GET /api/conversations` — listar. Respuesta: `{ "conversations": [...] }`
+- `PUT /api/conversations` — crear o reemplazar (body = conversación completa)
+- `DELETE /api/conversations/{id}` — eliminar (404 si no existe)
 
 ---
 
-## 8. Tipos TypeScript
+## 6. Tipos TypeScript
 
-Ver `frontend/src/types/chat.ts`, `frontend/src/types/conversation.ts`, `frontend/src/types/document.ts`, `frontend/src/types/contract.ts`, `frontend/src/types/engine.ts`, `frontend/src/types/source.ts`.
-
----
-
-## 9. Modelos Pydantic equivalentes
-
-Ver `backend/models/schemas.py` para los modelos completos en Python. Los endpoints están en `backend/controllers/`.
+Ver `frontend/src/types/chat.ts`, `frontend/src/types/conversation.ts`, `frontend/src/types/document.ts` y `frontend/src/types/engine.ts`. Las llamadas al backend están en `frontend/src/services/api.ts`.
 
 ---
 
-## 10. CORS
+## 7. Modelos Pydantic equivalentes
+
+Ver `backend/models/schemas.py` para los modelos completos en Python. Los endpoints están en `backend/routers/`.
+
+---
+
+## 8. CORS
 
 El backend debe incluir `CORSMiddleware` permitiendo el origen del frontend en desarrollo (por defecto `http://localhost:5173`).
 
 ---
 
-## 11. Dónde encajan RAG, LLM y base de datos
+## 9. Dónde encajan RAG, LLM y base de datos
 
 ```
 Usuario → Frontend → POST /api/chat → Backend (FastAPI)
@@ -231,7 +180,7 @@ El frontend **no** implementa IA, embeddings ni búsqueda vectorial. Solo envía
 
 ---
 
-## 12. Configuración
+## 10. Configuración
 
 La aplicación no tiene modo mock: el frontend siempre habla con el backend.
 
