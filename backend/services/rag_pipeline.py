@@ -654,13 +654,14 @@ def pedir_aclaracion(version_recibida: str, versiones_disponibles: list[str]) ->
     # Mensaje distinto si la versión venía rellena pero no existe, o si venía vacía.
     if version_recibida:
         texto = (
-            f"La versión «{version_recibida}» no está reconocida. "
-            f"Selecciona una de estas versiones: {opciones}."
+            f"No reconozco la versión «{version_recibida}». "
+            f"¿Me dices cuál tienes? Elige una de estas: {opciones}."
         )
     else:
         texto = (
-            "¿Qué versión tiene tu vehículo? "
-            f"Selecciona una de estas versiones: {opciones}."
+            "Antes de responderte necesito saber qué versión del motor tienes "
+            f"({opciones}) y qué tipo de usuario eres (Mecánico o Usuario). "
+            "Elígelos en el selector de motor."
         )
 
     return {

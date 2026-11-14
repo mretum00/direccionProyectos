@@ -38,13 +38,7 @@
   "history": [
     { "role": "user", "content": "..." },
     { "role": "assistant", "content": "..." }
-  ],
-  "vehicle": {
-    "brand": "",
-    "model": "",
-    "year": null,
-    "vin": ""
-  }
+  ]
 }
 ```
 
@@ -52,7 +46,6 @@
 - `system`: opcional (`CIR-01`, `CIR-02`, `CIR-03`) o ausente.
 - `profile`: `"mechanic"` (lenguaje técnico) o `"user"` (lenguaje sencillo).
 - `history`: últimos 6 mensajes (el backend es sin estado).
-- `vehicle`: datos informativos opcionales.
 
 ### Respuesta
 

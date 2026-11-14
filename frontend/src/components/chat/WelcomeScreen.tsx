@@ -1,4 +1,4 @@
-import { Sparkles, Thermometer, AlertTriangle, Shield, Wrench } from 'lucide-react';
+import { Sparkles, Thermometer, AlertTriangle, Shield, Wrench, Settings2 } from 'lucide-react';
 
 interface WelcomeScreenProps {
   onSuggestion: (text: string) => void;
@@ -37,9 +37,20 @@ export function WelcomeScreen({ onSuggestion }: WelcomeScreenProps) {
       </div>
 
       <h2 className="text-2xl font-bold text-texto mb-2">¿En qué puedo ayudarte?</h2>
-      <p className="text-sm text-texto-400 max-w-md mb-8">
+      <p className="text-sm text-texto-400 max-w-md mb-6">
         Consulta la documentación técnica de tu motor y obtén respuestas verificables.
       </p>
+
+      <div className="flex items-start gap-3 max-w-md mb-8 p-4 rounded-xl bg-cyan-500/5 border border-cyan-500/15 text-left">
+        <Settings2 className="w-4 h-4 text-cyan-400 mt-0.5 flex-shrink-0" />
+        <p className="text-sm text-texto-300 leading-relaxed">
+          Antes de empezar, abre el selector de motor (arriba a la derecha) y elige tu{' '}
+          <span className="text-texto font-medium">versión</span> y si prefieres respuestas de{' '}
+          <span className="text-texto font-medium">Mecánico</span> o de{' '}
+          <span className="text-texto font-medium">Usuario</span>. Así te respondo con la información
+          exacta para tu caso.
+        </p>
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl">
         {SUGGESTIONS.map(({ icon: Icon, text, hint }) => (

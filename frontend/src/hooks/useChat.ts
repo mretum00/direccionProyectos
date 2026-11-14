@@ -76,7 +76,6 @@ export function useChat() {
           system: selection.system,
           profile: selection.profile,
           history,
-          vehicle: { ...selection.vehicle },
         },
         controller.signal,
       );
@@ -93,8 +92,7 @@ export function useChat() {
         messages: [...pending.messages, assistantMessage],
         updated_at: assistantMessage.created_at ?? now,
       };
-      storeRef.current.upsertConversation(finalConversation);
-      // Un fallo al guardar no invalida la respuesta ya recibida.
+      storeRef.current.upsertConversation(finalConversation);      // Un fallo al guardar no invalida la respuesta ya recibida.
       conversationRepository.save(finalConversation).catch(() => undefined);
     } catch (e) {
       if (controller.signal.aborted) {

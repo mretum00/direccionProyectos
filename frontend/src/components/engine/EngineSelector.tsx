@@ -1,23 +1,14 @@
-import { useState, useRef, useEffect } from 'react';
-import { Settings2, ChevronDown, AlertTriangle, Car } from 'lucide-react';
+import { useRef, useEffect } from 'react';
+import { Settings2, ChevronDown, AlertTriangle } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { ToggleGroup } from '@/components/ui/ToggleGroup';
-import { ENGINES, PROFILES, SYSTEMS, type EngineSelection, type EngineSystem, type VehicleInfo } from '@/types/engine';
+import { ENGINES, PROFILES, SYSTEMS, type EngineSelection, type EngineSystem } from '@/types/engine';
 
-const INPUT_CLASS =
-  'bg-fondo border border-contraste/10 rounded-md px-2.5 py-1.5 text-xs text-texto outline-none focus:border-cyan-500/50';
 const SELECT_CLASS =
   'w-full bg-fondo border border-contraste/10 rounded-md px-3 py-2 text-sm text-texto outline-none focus:border-cyan-500/50';
 
-const VEHICLE_TEXT_FIELDS: { key: 'brand' | 'model' | 'vin'; placeholder: string }[] = [
-  { key: 'brand', placeholder: 'Marca' },
-  { key: 'model', placeholder: 'Modelo' },
-  { key: 'vin', placeholder: 'VIN' },
-];
-
 export function EngineSelector() {
-  const { engineSelection: sel, setEngineSelection } = useAppStore();
-  const [open, setOpen] = useState(false);
+  const { engineSelection: sel, setEngineSelection, engineSelectorOpen: open, setEngineSelectorOpen: setOpen } = useAppStore();
   const ref = useRef<HTMLDivElement>(null);
 
   // El listener global solo existe mientras el panel está abierto.
@@ -28,10 +19,9 @@ export function EngineSelector() {
     }
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
+  }, [open, setOpen]);
 
   const update = (patch: Partial<EngineSelection>) => setEngineSelection({ ...sel, ...patch });
-  const updateVehicle = (patch: Partial<VehicleInfo>) => update({ vehicle: { ...sel.vehicle, ...patch } });
 
   const versions = ENGINES.find((e) => e.name === sel.engine)?.versions ?? [];
   const versionWarning = !sel.engine_version;
@@ -39,7 +29,7 @@ export function EngineSelector() {
   return (
     <div ref={ref} className="relative">
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen(!open)}
         className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-contraste/5 hover:bg-contraste/10 border border-contraste/5 text-xs transition-colors"
       >
         <Settings2 className="w-3.5 h-3.5 text-cyan-400" />
@@ -101,36 +91,6 @@ export function EngineSelector() {
           <div>
             <label className="block text-[11px] font-medium text-texto-400 mb-1.5">Perfil de respuesta</label>
             <ToggleGroup options={PROFILES} value={sel.profile} onChange={(profile) => update({ profile })} />
-          </div>
-
-          <div>
-            <label className="block text-[11px] font-medium text-texto-400 mb-1.5">
-              <span className="flex items-center gap-1"><Car className="w-3 h-3" /> Datos del vehículo (opcional)</span>
-            </label>
-            <div className="grid grid-cols-2 gap-2">
-              {VEHICLE_TEXT_FIELDS.slice(0, 2).map(({ key, placeholder }) => (
-                <input
-                  key={key}
-                  placeholder={placeholder}
-                  value={sel.vehicle[key]}
-                  onChange={(e) => updateVehicle({ [key]: e.target.value })}
-                  className={INPUT_CLASS}
-                />
-              ))}
-              <input
-                type="number"
-                placeholder="Año"
-                value={sel.vehicle.year ?? ''}
-                onChange={(e) => updateVehicle({ year: e.target.value ? parseInt(e.target.value, 10) : null })}
-                className={INPUT_CLASS}
-              />
-              <input
-                placeholder={VEHICLE_TEXT_FIELDS[2].placeholder}
-                value={sel.vehicle.vin}
-                onChange={(e) => updateVehicle({ vin: e.target.value })}
-                className={INPUT_CLASS}
-              />
-            </div>
           </div>
 
           <button

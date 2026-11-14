@@ -34,17 +34,9 @@ export const PROFILES: { label: string; value: Profile }[] = [
   { label: 'Usuario', value: 'user' },
 ];
 
-export interface VehicleInfo {
-  brand: string;
-  model: string;
-  year: number | null;
-  vin: string;
-}
-
 export interface EngineSelection {
   engine: string;
   engine_version: string;
   system: EngineSystem;
   profile: Profile;
-  vehicle: VehicleInfo;
 }

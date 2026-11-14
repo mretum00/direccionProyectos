@@ -20,7 +20,6 @@ function buildDefaultSelection(): EngineSelection {
     engine_version: hasVersion ? config.defaultEngineVersion : '',
     system: null,
     profile: 'mechanic',
-    vehicle: { brand: '', model: '', year: null, vin: '' },
   };
 }
 
@@ -30,6 +29,7 @@ export default function App() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [engineSelection, setEngineSelection] = useState<EngineSelection>(buildDefaultSelection);
+  const [engineSelectorOpen, setEngineSelectorOpen] = useState(false);
   const [page, setPage] = useState<Page>('chat');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -66,13 +66,15 @@ export default function App() {
       conversations,
       activeConversationId,
       engineSelection,
+      engineSelectorOpen,
       setConversations,
       setActiveConversationId,
       setEngineSelection,
+      setEngineSelectorOpen,
       upsertConversation,
       deleteConversation,
     }),
-    [conversations, activeConversationId, engineSelection, upsertConversation, deleteConversation],
+    [conversations, activeConversationId, engineSelection, engineSelectorOpen, upsertConversation, deleteConversation],
   );
 
   return (

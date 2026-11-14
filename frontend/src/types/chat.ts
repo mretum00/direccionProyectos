@@ -34,12 +34,6 @@ export interface ChatRequest {
   system?: EngineSystem;
   profile: Profile;
   history: { role: Role; content: string }[];
-  vehicle?: {
-    brand?: string;
-    model?: string;
-    year?: number | null;
-    vin?: string;
-  };
 }
 
 export interface SafetyItem {

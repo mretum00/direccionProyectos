@@ -1,6 +1,7 @@
 import { memo } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { User, Bot } from 'lucide-react';
+import { User, Bot, AlertTriangle, Settings2 } from 'lucide-react';
+import { useAppStore } from '@/store/appStore';
 import type { ChatMessage } from '@/types/chat';
 import { EvidencePanel } from '@/components/sources/EvidencePanel';
 
@@ -22,6 +23,40 @@ interface MessageProps {
   message: ChatMessage;
 }
 
+/** Aviso destacado en ámbar cuando falta un dato (versión) para poder responder. */
+function ClarificationMessage() {
+  const { setEngineSelectorOpen } = useAppStore();
+  return (
+    <div className="flex justify-start animate-in fade-in duration-300">
+      <div className="flex items-start gap-2.5 max-w-[88%] w-full">
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center flex-shrink-0">
+          <Bot className="w-4 h-4 text-white" />
+        </div>
+
+        <div className="flex-1 min-w-0 rounded-2xl rounded-tl-sm bg-amber-500/10 border border-amber-500/30 px-4 py-3 space-y-3">
+          <div className="flex items-center gap-2 text-amber-400 text-[11px] font-semibold uppercase tracking-wider">
+            <AlertTriangle className="w-4 h-4" />
+            Falta configurar tu consulta
+          </div>
+          <p className="text-sm text-texto-300 leading-relaxed">
+            Para responderte necesito saber qué <strong className="font-semibold text-amber-400">versión del motor</strong> tienes
+            y qué <strong className="font-semibold text-amber-400">tipo de usuario</strong> eres (Mecánico o Usuario).
+            Elígelos en el selector de motor y vuelve a enviar tu consulta.
+          </p>
+          <button
+            type="button"
+            onClick={() => setEngineSelectorOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-500/20 text-amber-300 text-xs font-medium hover:bg-amber-500/30 transition-colors"
+          >
+            <Settings2 className="w-3.5 h-3.5" />
+            Abrir selector de motor
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MessageComponent({ message }: MessageProps) {
   if (message.role === 'user') {
     return (
@@ -36,6 +71,10 @@ function MessageComponent({ message }: MessageProps) {
         </div>
       </div>
     );
+  }
+
+  if (message.response?.needs_clarification) {
+    return <ClarificationMessage />;
   }
 
   const sources = message.response?.sources;
