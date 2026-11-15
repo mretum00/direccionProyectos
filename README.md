@@ -61,10 +61,4 @@ Entra en **http://localhost:5173** y disfruta. 🚀
   ```bash
   python backend/db/database_generator.py
   ```
-
-  El generador crea la BD siempre desde cero y la verifica (versiones válidas, vectores, totales declarados
-  por los PDF); si encuentra errores, la elimina. Ejecútalo de nuevo cada vez que cambies los manuales, la
-  lista de versiones, el modelo de embeddings o `RAG_CHUNK_SIZE` / `RAG_CHUNK_OVERLAP`. Esquema de las
-  bases de datos: [docs/ESQUEMA_BD.md](docs/ESQUEMA_BD.md).
-
 - Si cambias el `.env`, reinicia el backend y el frontend.
