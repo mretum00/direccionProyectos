@@ -20,11 +20,14 @@ def formatear_historial(historial: list[dict], max_chars: int = 500) -> str:
     """
     lineas = []
     for h in historial:
+        # Cada mensaje del frontend trae "role" ("user" o "assistant") y "content".
         quien = "Usuario" if h["role"] == "user" else "Asistente"
         texto = h["content"].strip()
+        # Recorte: evita que una respuesta larga del asistente ocupe medio prompt.
         if len(texto) > max_chars:
             texto = texto[:max_chars] + "..."
         lineas.append(f"{quien}: {texto}")
+    # Un mensaje por línea: "Usuario: ...\nAsistente: ...".
     return "\n".join(lineas)
 
 
@@ -40,6 +43,9 @@ def construir_prompt(
     `perfil` es "user" (conductor) o "mechanic" (técnico) y cambia el tono de la
     respuesta. Se usa el mensaje original del usuario, no la consulta traducida.
     """
+    # 1. Contexto documental: cada fragmento recuperado se convierte en un bloque
+    #    de texto con una cabecera que lo identifica, para que el LLM pueda citarlo.
+    #    Se usa .get con valor por defecto para que un fragmento incompleto no rompa el prompt.
     bloques_contexto = []
     for f in fragmentos:
         chunk_id = f.get("chunk_id", "Desconocido")
@@ -50,6 +56,7 @@ def construir_prompt(
         seccion = f.get("seccion")
         texto = f.get("texto", "")
 
+        # Sección y página son opcionales: solo se añaden a la cabecera si existen.
         info_extra = []
         if seccion:
             info_extra.append(f"Sección: {seccion}")
@@ -57,12 +64,16 @@ def construir_prompt(
             info_extra.append(f"Página: {pagina}")
         extra_str = " | " + " | ".join(info_extra) if info_extra else ""
 
+        # Cabecera entre corchetes (documento, fragmento, categoría, versiones...) y debajo el texto.
         bloques_contexto.append(
             f"[Documento: {documento} | Fragmento: {chunk_id} | Categoría: {categoria} | Versiones aplicables: {versiones}{extra_str}]\n{texto}"
         )
 
+    # Los bloques se separan con una línea "---" para que el LLM vea dónde acaba cada fragmento.
     contexto_unido = "\n\n---\n\n".join(bloques_contexto)
 
+    # 2. Perfil del usuario: cambia el tono y el nivel técnico de la respuesta.
+    #    "user" = conductor (lenguaje claro y prudente); cualquier otro valor se trata como mecánico.
     if perfil == "user":
         instruccion_perfil = (
             "El usuario es el CONDUCTOR del vehículo (perfil 'user'). "
@@ -76,6 +87,8 @@ def construir_prompt(
             "testigos (TES-XX), circuitos (CIR-01/02/03), herramientas (HTM-TOOL-XX), EPIs y niveles de habilitación."
         )
 
+    # 3. Historial: solo se incluye si hay mensajes previos, para que el LLM entienda
+    #    preguntas de seguimiento. Si está vacío, no deja ni una línea en el prompt.
     bloque_historial = (
         f"\nHISTORIAL RECIENTE DE LA CONVERSACIÓN:\n{formatear_historial(historial)}\n"
         if historial
@@ -83,6 +96,14 @@ def construir_prompt(
     )
     version_seleccionada = version or "No especificada"
 
+    # 4. Prompt final. Orden del texto (NO escribir comentarios Python dentro de las
+    #    comillas: se enviarían al LLM):
+    #      - perfil del usuario y versión elegida en la interfaz
+    #      - historial reciente (si lo hay)
+    #      - reglas críticas: fidelidad a los documentos, versiones y datos obsoletos,
+    #        componentes ambiguos, seguridad y fuera de alcance
+    #      - estructura de la respuesta (### RESUMEN y secciones en Markdown)
+    #      - contexto documental recuperado y, al final, la pregunta del usuario
     prompt_final = f"""Eres el asistente técnico oficial del sistema de gestión térmica híbrida ThermoDrive HTM-240.
 
 ADAPTACIÓN AL PERFIL:

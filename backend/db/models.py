@@ -1,21 +1,19 @@
 """
-Modelos Peewee de las tablas SQLite del backend.
+Modelo Peewee de la tabla SQLite del backend.
 
-Hay dos bases de datos, cada una en su archivo:
-  - `rag_db`            -> thermodrive_rag.db (settings.db_path): tabla `rag_documents`
-  - `conversations_db`  -> conversations.db (settings.conversations_db_path): tabla `conversations`
+Hay una base de datos: `rag_db` -> thermodrive_rag.db (settings.db_path), tabla `rag_documents`.
+Las conversaciones del chat no se guardan en el backend: viven en el localStorage del navegador.
 
-Los modelos solo describen las tablas. Quien lee y escribe en ellas son los repositorios
-(backend/db/repositories/), uno por tabla: nadie más debería usar estos modelos directamente.
+El modelo solo describe la tabla. Quien lee y escribe en ella es el repositorio
+(backend/db/repositories/): nadie más debería usar este modelo directamente.
 """
 
 from peewee import BlobField, IntegerField, Model, SqliteDatabase, TextField
 
 from config import settings
 
-# Peewee no abre el archivo hasta la primera consulta: los repositorios abren y cierran la conexión en cada operación.
+# Peewee no abre el archivo hasta la primera consulta: el repositorio abre y cierra la conexión en cada operación.
 rag_db = SqliteDatabase(str(settings.db_path))
-conversations_db = SqliteDatabase(str(settings.conversations_db_path))
 
 
 class RagChunk(Model):
@@ -32,15 +30,3 @@ class RagChunk(Model):
     class Meta:
         database = rag_db
         table_name = "rag_documents"
-
-
-class ConversationRow(Model):
-    """Una conversación del historial de chat."""
-
-    id = TextField(primary_key=True)
-    updated_at = TextField()
-    data = TextField()                            # la conversación entera, en JSON
-
-    class Meta:
-        database = conversations_db
-        table_name = "conversations"

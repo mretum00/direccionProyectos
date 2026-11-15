@@ -12,9 +12,9 @@ const SETTINGS = [
   {
     icon: Database,
     label: 'Almacenamiento de conversaciones',
-    value: config.remoteConversations ? 'Backend remoto' : 'Local (localStorage)',
-    hint: config.remoteConversations ? 'Sincronizado con el servidor' : 'Guardado en el navegador',
-    positive: config.remoteConversations,
+    value: 'Local (localStorage)',
+    hint: 'Guardado en el navegador',
+    positive: true,
   },
   {
     icon: Shield,

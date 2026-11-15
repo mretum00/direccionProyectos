@@ -13,8 +13,6 @@ function flag(value: string | undefined): boolean {
 export const config = {
   /** URL base del backend FastAPI (sin barra final). */
   apiUrl: (env.VITE_API_URL ?? '').trim().replace(/\/+$/, ''),
-  /** true: conversaciones en el backend. false: localStorage del navegador. */
-  remoteConversations: flag(env.VITE_REMOTE_CONVERSATIONS),
   /** Activa el botón de subida de PDF en la pantalla de documentación. */
   enableDocumentUpload: flag(env.VITE_ENABLE_DOCUMENT_UPLOAD),
   /** Versión preseleccionada al abrir la app (debe ser una de GET /api/versions). Vacío = sin seleccionar. */

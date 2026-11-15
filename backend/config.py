@@ -71,7 +71,6 @@ class Settings:
 
     # --- Rutas ---
     db_path: Path
-    conversations_db_path: Path
     manuals_dir: Path
 
     # --- IA ---
@@ -102,9 +101,6 @@ def load_settings() -> Settings:
         log_level=_get_str("LOG_LEVEL", "INFO").upper(),
         # DB_NAME es relativo a la raíz del repo (o ruta absoluta).
         db_path=_resolve(PROJECT_ROOT, _get_str("DB_NAME", "thermodrive_rag.db")),
-        # Conversaciones en un fichero aparte: guardar una conversación no debe
-        # invalidar la caché de embeddings de la BD vectorial.
-        conversations_db_path=_resolve(PROJECT_ROOT, _get_str("CONVERSATIONS_DB_NAME", "conversations.db")),
         # MANUALS_DIR es relativo a backend/db/ (o ruta absoluta).
         manuals_dir=_resolve(BACKEND_DIR / "db", _get_str("MANUALS_DIR", "manual_htm240")),
         embedding_model=_get_str("EMBEDDING_MODEL", "paraphrase-multilingual-MiniLM-L12-v2"),

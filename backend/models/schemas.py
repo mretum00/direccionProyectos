@@ -105,30 +105,3 @@ class TechnicalDocument(BaseModel):
 
 class DocumentsListResponse(BaseModel):
     documents: list[TechnicalDocument] = Field(default_factory=list)
-
-
-# --- Conversaciones ---------------------------------------------------------
-
-
-class ConversationMessage(BaseModel):
-    id: str
-    role: Role
-    content: str
-    created_at: str | None = None
-    response: dict | None = None
-
-
-class Conversation(BaseModel):
-    id: str
-    title: str
-    created_at: str
-    updated_at: str
-    favorite: bool = False
-    engine_version: str = ""
-    # Vacío mientras el usuario aún no ha elegido tipo de usuario (conversación sin mensajes).
-    profile: Profile | Literal[""] = ""
-    messages: list[ConversationMessage] = Field(default_factory=list)
-
-
-class ConversationsListResponse(BaseModel):
-    conversations: list[Conversation] = Field(default_factory=list)

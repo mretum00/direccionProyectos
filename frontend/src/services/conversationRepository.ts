@@ -1,11 +1,8 @@
-import { config } from '@/config';
 import type { Conversation } from '@/types/conversation';
-import { api } from './api';
 
 /**
- * Dónde se guardan las conversaciones:
- * - VITE_REMOTE_CONVERSATIONS=true  -> en el backend (api.ts)
- * - en cualquier otro caso          -> en el localStorage del navegador
+ * Las conversaciones se guardan en el localStorage del navegador (no en el backend):
+ * solo las ve quien usa ese navegador.
  */
 const STORAGE_KEY = 'arsoft_conversations';
 
@@ -27,17 +24,15 @@ function writeLocal(conversations: Conversation[]): void {
 
 export const conversationRepository = {
   async list(): Promise<Conversation[]> {
-    return config.remoteConversations ? api.listConversations() : readLocal();
+    return readLocal();
   },
 
   async save(conversation: Conversation): Promise<void> {
-    if (config.remoteConversations) return api.saveConversation(conversation);
     const others = readLocal().filter((c) => c.id !== conversation.id);
     writeLocal([...others, conversation]);
   },
 
   async delete(id: string): Promise<void> {
-    if (config.remoteConversations) return api.deleteConversation(id);
     writeLocal(readLocal().filter((c) => c.id !== id));
   },
 };
