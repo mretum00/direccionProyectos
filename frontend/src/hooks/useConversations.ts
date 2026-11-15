@@ -67,10 +67,14 @@ export function useConversations() {
     [update],
   );
 
+  /** Si se borra la conversación abierta, el selector vuelve a quedar vacío (como en un chat nuevo). */
   const deleteConversation = useCallback(
     (id: string) => {
       store.deleteConversation(id);
-      if (store.activeConversationId === id) store.setActiveConversationId(null);
+      if (store.activeConversationId === id) {
+        store.setActiveConversationId(null);
+        store.setEngineSelection({ engine_version: '', profile: '' });
+      }
       conversationRepository.delete(id).catch(() => undefined);
     },
     [store],

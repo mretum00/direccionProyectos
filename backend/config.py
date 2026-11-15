@@ -123,8 +123,9 @@ def load_settings() -> Settings:
         rag_evidence_high_score=_get_float("RAG_EVIDENCE_HIGH_SCORE", 0.5),
         # Extra de puntuación para los fragmentos que contienen el código de avería exacto de la consulta.
         rag_code_match_bonus=_get_float("RAG_CODE_MATCH_BONUS", 0.15),
-        rag_chunk_size=_get_int("RAG_CHUNK_SIZE", 800),
-        rag_chunk_overlap=_get_int("RAG_CHUNK_OVERLAP", 200),
+        # El modelo de embeddings solo lee ~128 tokens (≈ 500 caracteres): con trozos de 800 se perdía el final de cada uno.
+        rag_chunk_size=_get_int("RAG_CHUNK_SIZE", 600),
+        rag_chunk_overlap=_get_int("RAG_CHUNK_OVERLAP", 120),
         source_excerpt_chars=_get_int("SOURCE_EXCERPT_CHARS", 200),
     )
 
