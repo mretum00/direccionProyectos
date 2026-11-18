@@ -73,7 +73,7 @@ Las capas van siempre en el mismo sentido (de la vista a la base de datos):
 - **Frontend**: vistas (`pages/`, `components/`) → hooks (`useChat`, `useConversations`) y sesión (`auth.tsx`) → `services/api.ts`, el único sitio que llama al backend.
 - **Backend**: `routers/` (endpoints HTTP) → `services/` (lógica: `auth.py`, `rag_pipeline.py`...) y `db/repositories/` (el único sitio con consultas a la BD) → `db/models.py`.
 
-- Al iniciar sesión el backend devuelve un **token**; el frontend lo guarda y lo envía en cada petición (`Authorization: Bearer <token>`). En la BD solo se guarda su hash, en la fila del usuario (`users.token_hash` y `users.token_expires`): **cada usuario tiene una sola sesión**, y entrar desde otro navegador cierra la anterior. Si caduca, se cierra o se abre en otro sitio, el backend responde 401 y el frontend vuelve al login.
+- Al iniciar sesión el backend devuelve un **token**; el frontend lo guarda y lo envía en cada petición (`Authorization: Bearer <token>`). En la BD solo se guarda su hash, en la fila del usuario (`users.token_hash`): **cada usuario tiene una sola sesión**, que no caduca: dura hasta cerrar sesión o entrar desde otro navegador, que cierra la anterior. Si se cierra o se abre en otro sitio, el backend responde 401 y el frontend vuelve al login.
 - El backend es la **única fuente de verdad** de los chats: `POST /api/chat` lee el historial de la conversación de la BD, ejecuta el RAG y guarda la pregunta y la respuesta juntas (si el RAG falla no se guarda nada). Devuelve la conversación ya guardada.
 - Un chat nuevo no existe en el backend hasta que se envía su primera pregunta.
 

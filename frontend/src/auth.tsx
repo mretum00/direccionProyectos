@@ -21,7 +21,7 @@ const END_TOASTS: Record<EndReason, ToastData> = {
   expired: {
     tone: 'aviso',
     title: 'Sesión cerrada',
-    description: 'Ha caducado o has entrado con tu usuario en otro dispositivo. Vuelve a iniciar sesión.',
+    description: 'Has entrado con tu usuario en otro dispositivo. Vuelve a iniciar sesión.',
   },
   offline: {
     tone: 'peligro',
@@ -55,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [toast],
   );
 
-  // Cualquier 401 del backend (sesión caducada o cerrada en otro sitio) devuelve al login.
+  // Cualquier 401 del backend (sesión cerrada o abierta en otro sitio) devuelve al login.
   useEffect(() => {
     setUnauthorizedHandler(() => endSession('expired'));
   }, [endSession]);
@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setStatus('authenticated');
       })
       .catch((e) => {
-        // Token caducado: el 401 ya ha cerrado la sesión con el aviso 'expired'.
+        // Token que ya no vale: el 401 ya ha cerrado la sesión con el aviso 'expired'.
         if (e instanceof ApiError && e.status === 401) return;
         // Sin conexión no se puede comprobar: se cierra la sesión local para no mostrar una app que no funciona.
         if (active) endSession('offline');

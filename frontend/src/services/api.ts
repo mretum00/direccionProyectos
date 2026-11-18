@@ -25,7 +25,7 @@ function invalidFields(detail: unknown): string[] {
     .filter((field): field is string => typeof field === 'string');
 }
 
-/** Lo registra el AuthProvider: se llama cuando el backend responde 401 (sesión caducada o cerrada). */
+/** Lo registra el AuthProvider: se llama cuando el backend responde 401 (sesión cerrada o abierta en otro sitio). */
 let onUnauthorized: () => void = () => undefined;
 
 export function setUnauthorizedHandler(handler: () => void): void {
@@ -47,7 +47,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!response.ok) {
     const body = (await response.json().catch(() => null)) as { detail?: unknown } | null;
     const detail = typeof body?.detail === 'string' ? body.detail : `Error ${response.status} en ${path}`;
-    // Un 401 del login son credenciales incorrectas, no una sesión caducada.
+    // Un 401 del login son credenciales incorrectas, no una sesión cerrada.
     if (response.status === 401 && token && !path.startsWith('/api/auth/login')) onUnauthorized();
     throw new ApiError(response.status, detail, invalidFields(body?.detail));
   }

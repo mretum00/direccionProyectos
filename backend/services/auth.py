@@ -5,7 +5,7 @@ Registro, inicio de sesión y sesiones de usuario.
 - Al iniciar sesión se genera un token aleatorio que el frontend envía en cada petición
   (cabecera `Authorization: Bearer <token>`). En la BD solo se guarda su hash SHA-256, en la
   propia fila del usuario: cada usuario tiene una sola sesión, y entrar desde otro navegador
-  cierra la anterior.
+  cierra la anterior. Las sesiones no caducan: duran hasta cerrar sesión o entrar en otro sitio.
 - `usuario_actual` es la dependencia de FastAPI que protege los endpoints: sin un token
   válido responde 401.
 """
@@ -17,7 +17,6 @@ import secrets
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from config import settings
 from db.models import User
 from db.repositories import UserRepository, UsernameTakenError
 
@@ -77,7 +76,7 @@ def iniciar_sesion(username: str, password: str) -> tuple[str, User]:
         raise CredencialesInvalidas()
 
     token = secrets.token_urlsafe(32)
-    repositorio.set_token(usuario, _hash_token(token), settings.session_ttl_hours)
+    repositorio.set_token(usuario, _hash_token(token))
     return token, usuario
 
 
@@ -97,13 +96,13 @@ def token_actual(credenciales: HTTPAuthorizationCredentials | None = Depends(_be
 
 
 def usuario_actual(token: str = Depends(token_actual)) -> User:
-    """Dependencia de FastAPI: el usuario de la sesión, o 401 si el token falta, no existe o caducó
-    (también si se ha iniciado sesión con ese usuario en otro navegador)."""
+    """Dependencia de FastAPI: el usuario de la sesión, o 401 si el token falta o no existe
+    (sesión cerrada, o iniciada con ese usuario en otro navegador)."""
     usuario = repositorio.get_by_token(_hash_token(token))
     if usuario is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="La sesión ha caducado o se ha iniciado en otro dispositivo",
+            detail="La sesión se ha cerrado o se ha iniciado en otro dispositivo",
             headers={"WWW-Authenticate": "Bearer"},
         )
     return usuario

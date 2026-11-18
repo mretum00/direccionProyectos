@@ -78,9 +78,8 @@ class User(AppModel):
     password_hash = TextField()                   # pbkdf2_sha256$iteraciones$sal$hash (nunca la contraseña)
     created_at = TextField()
     # Sesión actual. Solo se guarda el hash del token: si se filtra la BD, el token no sirve.
-    # Los dos a None = sin sesión iniciada.
+    # None = sin sesión iniciada. Las sesiones no caducan.
     token_hash = TextField(null=True, unique=True)
-    token_expires = TextField(null=True)
 
     class Meta(_AppMeta):
         table_name = "users"
@@ -153,14 +152,14 @@ def _add_message_selection_columns() -> None:
 
 
 def _move_sessions_to_users() -> None:
-    """BD creadas cuando las sesiones tenían su propia tabla (`sessions`): añade las columnas del
-    token a `users` y borra la tabla vieja. Las sesiones abiertas se pierden: hay que volver a entrar."""
+    """BD creadas cuando las sesiones tenían su propia tabla (`sessions`): añade la columna del
+    token a `users` y borra la tabla vieja. Las sesiones abiertas se pierden: hay que volver a entrar.
+    (En BD de cuando las sesiones caducaban queda una columna `token_expires` que ya no se usa.)"""
     existing = {column.name for column in app_db.get_columns(User._meta.table_name)}
-    missing = [name for name in ("token_hash", "token_expires") if name not in existing]
     with app_db.atomic():
-        if missing:
+        if "token_hash" not in existing:
             migrator = SqliteMigrator(app_db)
-            # Columnas sin índice: el índice único de token_hash lo crea create_tables justo después
+            # Columna sin índice: el índice único de token_hash lo crea create_tables justo después
             # (así hay uno solo, con el mismo nombre que en una BD nueva).
-            migrate(*(migrator.add_column(User._meta.table_name, name, TextField(null=True)) for name in missing))
+            migrate(migrator.add_column(User._meta.table_name, "token_hash", TextField(null=True)))
         app_db.execute_sql("DROP TABLE IF EXISTS sessions")
