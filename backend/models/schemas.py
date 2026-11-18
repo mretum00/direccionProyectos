@@ -1,7 +1,7 @@
-"""Modelos Pydantic del contrato API (v1.0.0). La lógica de negocio irá en los controladores."""
+"""Modelos Pydantic del contrato API (ver docs/API_CONTRACT.md)."""
 
 from enum import Enum
-from typing import List, Literal, Optional, Union
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -12,19 +12,9 @@ class EvidenceStatus(str, Enum):
     insufficient = "insufficient"
 
 
-class Criticality(str, Enum):
-    low = "low"
-    medium = "medium"
-    high = "high"
-    critical = "critical"
-
-
-class SafetyLevel(str, Enum):
-    warning = "warning"
-    critical = "critical"
-
-
 class SourceType(str, Enum):
+    """Tipo de documento: lo comparten las fuentes citadas y los documentos indexados."""
+
     manual = "manual"
     dtc_catalog = "dtc_catalog"
     decision_tree = "decision_tree"
@@ -38,48 +28,28 @@ class Profile(str, Enum):
     user = "user"
 
 
-class DiscardReason(str, Enum):
-    obsolete_version = "obsolete_version"
-    version_mismatch = "version_mismatch"
-
-
-class DocumentType(str, Enum):
-    manual = "manual"
-    dtc_catalog = "dtc_catalog"
-    decision_tree = "decision_tree"
-    historical_case = "historical_case"
-    safety_manual = "safety_manual"
-    glossary = "glossary"
-
-
 class DocumentStatus(str, Enum):
     processed = "processed"
     pending = "pending"
     failed = "failed"
 
 
+# --- Chat -------------------------------------------------------------------
+
+
+Role = Literal["user", "assistant"]
+
+
 class HistoryItem(BaseModel):
-    role: str
+    role: Role
     content: str
 
 
-class VehicleInfo(BaseModel):
-    brand: str = ""
-    model: str = ""
-    year: Optional[int] = None
-    vin: str = ""
-
-
 class ChatRequest(BaseModel):
-    conversation_id: str = ""
     message: str
-    engine: str = ""
-    # Versión y perfil son obligatorios: sin ellos la petición se rechaza (422).
-    engine_version: str
-    system: Optional[str] = None
-    profile: Profile
-    history: List[HistoryItem] = Field(default_factory=list)
-    vehicle: VehicleInfo = Field(default_factory=VehicleInfo)
+    engine_version: str = ""
+    profile: Profile  # obligatorio: sin tipo de usuario la petición se rechaza (422)
+    history: list[HistoryItem] = Field(default_factory=list)
 
     @field_validator("message")
     @classmethod
@@ -89,88 +59,44 @@ class ChatRequest(BaseModel):
             raise ValueError("El mensaje no puede estar vacío")
         return value
 
-    @field_validator("engine")
-    @classmethod
-    def _strip(cls, value: str) -> str:
-        return value.strip()
-
-    @field_validator("engine_version")
-    @classmethod
-    def _version_not_blank(cls, value: str) -> str:
-        value = value.strip()
-        if not value:
-            raise ValueError("La versión del motor es obligatoria")
-        return value
-
 
 class MessageResponse(BaseModel):
     id: str
-    role: str = "assistant"
     content: str
-
-
-class SafetyItem(BaseModel):
-    level: SafetyLevel
-    text: str
-
-
-class InterpretedQuery(BaseModel):
-    original: str
-    technical_terms: List[str] = Field(default_factory=list)
-
-
-class DetectedDTC(BaseModel):
-    code: str
-    description: str
-
-
-class ResponseSections(BaseModel):
-    diagnosis: Optional[str] = None
-    possible_causes: Optional[List[str]] = None
-    criticality: Optional[Criticality] = None
-    safety: Optional[List[SafetyItem]] = None
-    ppe: Optional[List[str]] = None
-    checks: Optional[List[str]] = None
-    decision_tree_id: Optional[str] = None
-    procedure: Optional[str] = None
 
 
 class Source(BaseModel):
     id: str
     document: str
     source_type: SourceType
-    section: Optional[str] = None
-    page: Optional[int] = None
-    engine: Optional[str] = None
-    engine_version: Optional[str] = None
-    system: Optional[str] = None
-    excerpt: Optional[str] = None
-    url: Optional[str] = None
-
-
-class DiscardedSource(BaseModel):
-    document: str
-    reason: DiscardReason
-    detail: Optional[str] = None
+    section: str | None = None
+    page: int | None = None
+    engine_version: str | None = None
+    excerpt: str | None = None
 
 
 class ChatResponse(BaseModel):
     message: MessageResponse
-    evidence_status: Optional[EvidenceStatus] = None
-    confidence: Optional[float] = None
-    documents_consulted: Optional[int] = None
-    interpreted_query: Optional[InterpretedQuery] = None
-    detected_dtc: Optional[List[DetectedDTC]] = None
-    sections: Optional[ResponseSections] = None
-    sources: Optional[List[Source]] = None
-    discarded_sources: Optional[List[DiscardedSource]] = None
+    evidence_status: EvidenceStatus | None = None
+    needs_clarification: bool = False
+    documents_consulted: int | None = None
+    sources: list[Source] | None = None
+
+
+# --- Versiones --------------------------------------------------------------
+
+
+class VersionsResponse(BaseModel):
+    versions: list[str]
+
+
+# --- Documentos -------------------------------------------------------------
 
 
 class TechnicalDocument(BaseModel):
     id: str
     filename: str
-    type: DocumentType
-    engine: str
+    type: SourceType
     engine_version: str
     pages: int
     uploaded_at: str
@@ -178,26 +104,4 @@ class TechnicalDocument(BaseModel):
 
 
 class DocumentsListResponse(BaseModel):
-    documents: List[TechnicalDocument] = Field(default_factory=list)
-
-
-class ConversationMessage(BaseModel):
-    id: str
-    role: str
-    content: str
-    created_at: Optional[str] = None
-    response: Optional[dict] = None
-
-
-class Conversation(BaseModel):
-    id: str
-    title: str
-    created_at: str
-    updated_at: str
-    favorite: bool = False
-    engine: str = ""
-    engine_version: str = ""
-    system: Optional[str] = None
-    # Vacío mientras el usuario no haya elegido perfil (conversación recién creada).
-    profile: Union[Profile, Literal[""]] = ""
-    messages: List[ConversationMessage] = Field(default_factory=list)
+    documents: list[TechnicalDocument] = Field(default_factory=list)

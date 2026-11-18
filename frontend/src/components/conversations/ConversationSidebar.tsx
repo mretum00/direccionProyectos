@@ -20,17 +20,17 @@ export function Sidebar({ onNavigate }: SidebarProps) {
 
   return (
     <div className="flex flex-col w-full h-full bg-panel border-r border-contraste/5">
-      <div className="px-4 h-14 flex items-center flex-shrink-0">
+      <div className="p-4 flex-shrink-0">
         <Logo />
       </div>
 
-      <div className="px-3 pt-2 pb-3 flex gap-2 flex-shrink-0">
+      <div className="px-3 pb-3 flex gap-2 flex-shrink-0">
         <button
           onClick={() => {
             createConversation();
             onNavigate();
           }}
-          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 text-white text-sm font-medium hover:from-cyan-400 hover:to-blue-500 transition-all shadow-lg shadow-cyan-500/10"
+          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gradient-to-r from-marca-500 to-marca-600 text-white text-sm font-medium hover:from-marca-400 hover:to-marca-500 transition-all shadow-lg shadow-marca-500/10"
         >
           <Plus className="w-4 h-4" />
           Nueva conversación
@@ -56,7 +56,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
         ) : (
           grouped.map(({ label, items }) => (
             <div key={label} className="mb-4">
-              <div className="px-2 py-1.5 text-[10px] font-semibold text-texto-500 uppercase tracking-wider">
+              <div className="px-2 py-1.5 text-[11px] font-semibold text-texto-500 uppercase tracking-wider">
                 {label}
               </div>
               {items.map((conv) => (

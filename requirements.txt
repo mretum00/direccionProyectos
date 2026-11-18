@@ -1,9 +1,11 @@
+# Python 3.10 o superior
 fastapi>=0.100.0
 uvicorn>=0.23.0
 python-multipart
 pydantic>=2.0.0
 numpy
 PyMuPDF
-sentence-transformers
+sentence-transformers>=3.0.0
 python-dotenv
-groq
+peewee>=3.17.0
+groq>=0.30.0

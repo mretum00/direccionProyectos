@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Eye, EyeOff, LockKeyhole, UserPlus } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
+import { navigate } from '@/router';
 
 /** Longitudes mínimas al crear una cuenta. */
 const MIN_USERNAME_LENGTH = 3;
@@ -9,12 +10,13 @@ const MIN_PASSWORD_LENGTH = 8;
 type Mode = 'login' | 'register';
 
 interface LoginPageProps {
+  /** Lo decide la ruta: /login o /register. */
+  mode: Mode;
   onLogin?: (username: string, password: string) => Promise<void>;
   onRegister?: (username: string, password: string) => Promise<void>;
 }
 
-export function LoginPage({ onLogin, onRegister }: LoginPageProps) {
-  const [mode, setMode] = useState<Mode>('login');
+export function LoginPage({ mode, onLogin, onRegister }: LoginPageProps) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -28,7 +30,7 @@ export function LoginPage({ onLogin, onRegister }: LoginPageProps) {
   const submitAction = isRegister ? onRegister : onLogin;
 
   function changeMode(nextMode: Mode) {
-    setMode(nextMode);
+    navigate(nextMode === 'register' ? '/register' : '/login');
     setPassword('');
     setConfirmPassword('');
     setShowPassword(false);
@@ -85,6 +87,7 @@ export function LoginPage({ onLogin, onRegister }: LoginPageProps) {
         setSuccess('Cuenta creada correctamente. Ya puedes iniciar sesión.');
       } else {
         setPassword('');
+        navigate('/');
       }
     } catch {
       setError(
