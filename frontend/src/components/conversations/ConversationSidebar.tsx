@@ -30,7 +30,7 @@ export function Sidebar({ onNavigate }: SidebarProps) {
             createConversation();
             onNavigate();
           }}
-          className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-gradient-to-r from-marca-500 to-marca-600 text-white text-sm font-medium hover:from-marca-400 hover:to-marca-500 transition-all shadow-lg shadow-marca-500/10"
+          className="btn-primario flex-1 py-2.5 text-sm"
         >
           <Plus className="w-4 h-4" />
           Nueva conversación
@@ -60,14 +60,14 @@ export function Sidebar({ onNavigate }: SidebarProps) {
                 {label}
               </div>
               {items.map((conv) => (
-                <ConversationItem key={conv.id} conversation={conv} />
+                <ConversationItem key={conv.id} conversation={conv} onNavigate={onNavigate} />
               ))}
             </div>
           ))
         )}
       </div>
 
-      <ConversationSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
+      <ConversationSearch open={searchOpen} onClose={() => setSearchOpen(false)} onNavigate={onNavigate} />
     </div>
   );
 }

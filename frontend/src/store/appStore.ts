@@ -20,6 +20,8 @@ export interface AppStore extends AppState {
   setEngineSelectorOpen: (open: boolean, prompted?: boolean) => void;
   upsertConversation: (c: Conversation) => void;
   deleteConversation: (id: string) => void;
+  /** Vuelve a pedir al backend los chats del usuario (fuente de verdad). */
+  reloadConversations: () => Promise<void>;
 }
 
 export const AppStoreContext = createContext<AppStore | null>(null);

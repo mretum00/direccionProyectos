@@ -4,14 +4,17 @@ import { Modal } from '@/components/ui/Modal';
 import { useConversations } from '@/hooks/useConversations';
 import { relativeDate } from '@/utils/dateUtils';
 import { toPlainPreview } from '@/utils/text';
+import { versionsUsed } from '@/utils/conversation';
 import { useAppStore } from '@/store/appStore';
 
 interface ConversationSearchProps {
   open: boolean;
   onClose: () => void;
+  /** Se llama al abrir un resultado: vuelve a la página del chat y cierra el menú móvil. */
+  onNavigate: () => void;
 }
 
-export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
+export function ConversationSearch({ open, onClose, onNavigate }: ConversationSearchProps) {
   const { versions } = useAppStore();
   const { searchConversations, selectConversation } = useConversations();
   const [query, setQuery] = useState('');
@@ -25,8 +28,9 @@ export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
     return searchConversations(query, {
       engine_version: engineVersion || undefined,
       favoriteOnly,
-      dateFrom: dateFrom ? new Date(dateFrom).toISOString() : undefined,
-      dateTo: dateTo ? new Date(dateTo + 'T23:59:59').toISOString() : undefined,
+      // Día completo en hora local (sin la hora, `new Date('2026-11-18')` sería medianoche UTC).
+      dateFrom: dateFrom ? new Date(dateFrom + 'T00:00:00').toISOString() : undefined,
+      dateTo: dateTo ? new Date(dateTo + 'T23:59:59.999').toISOString() : undefined,
     });
   }, [query, engineVersion, favoriteOnly, dateFrom, dateTo, searchConversations]);
 
@@ -36,6 +40,7 @@ export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
   function handleSelect(id: string) {
     selectConversation(id);
     onClose();
+    onNavigate();
   }
 
   function clearAll() {
@@ -57,7 +62,7 @@ export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Buscar por título, contenido, motor, versión..."
-            className="w-full pl-10 pr-10 py-2.5 bg-fondo border border-contraste/10 rounded-lg text-sm text-texto outline-none focus:border-marca-500/50"
+            className="campo pl-10 pr-10 py-2.5"
           />
           {query && (
             <button onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-texto-500 hover:text-texto">
@@ -78,23 +83,23 @@ export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
         {showFilters && (
           <div className="grid grid-cols-2 gap-3 p-3 bg-contraste/5 rounded-lg">
             <div>
-              <label className="block text-[11px] text-texto-500 mb-1">Versión</label>
+              <label className="etiqueta">Versión</label>
               <select
                 value={engineVersion}
                 onChange={(e) => setEngineVersion(e.target.value)}
-                className="w-full bg-fondo border border-contraste/10 rounded-md px-2.5 py-1.5 text-xs text-texto outline-none"
+                className="campo rounded-md px-2.5 py-1.5 text-xs"
               >
                 <option value="">Todas</option>
                 {versions.map((v) => <option key={v} value={v}>{v}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-[11px] text-texto-500 mb-1">Favoritas</label>
+              <label className="etiqueta">Favoritas</label>
               <button
                 onClick={() => setFavoriteOnly((v) => !v)}
                 className={`w-full flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs border transition-colors ${
                   favoriteOnly
-                    ? 'bg-amber-500/10 text-amber-400 border-amber-500/30'
+                    ? 'bg-aviso-500/10 text-aviso-400 border-aviso-500/30'
                     : 'bg-fondo text-texto-400 border-contraste/10'
                 }`}
               >
@@ -102,21 +107,21 @@ export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
               </button>
             </div>
             <div>
-              <label className="block text-[11px] text-texto-500 mb-1">Desde</label>
+              <label className="etiqueta">Desde</label>
               <input
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
-                className="w-full bg-fondo border border-contraste/10 rounded-md px-2.5 py-1.5 text-xs text-texto outline-none"
+                className="campo rounded-md px-2.5 py-1.5 text-xs"
               />
             </div>
             <div>
-              <label className="block text-[11px] text-texto-500 mb-1">Hasta</label>
+              <label className="etiqueta">Hasta</label>
               <input
                 type="date"
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
-                className="w-full bg-fondo border border-contraste/10 rounded-md px-2.5 py-1.5 text-xs text-texto outline-none"
+                className="campo rounded-md px-2.5 py-1.5 text-xs"
               />
             </div>
           </div>
@@ -147,13 +152,13 @@ export function ConversationSearch({ open, onClose }: ConversationSearchProps) {
                 >
                   <div className="flex items-center justify-between gap-2 mb-1">
                     <span className="text-sm font-medium text-texto-200 truncate">
-                      {conv.favorite && <Star className="w-3 h-3 text-amber-400 inline mr-1 fill-amber-400" />}
+                      {conv.favorite && <Star className="w-3 h-3 text-aviso-400 inline mr-1 fill-aviso-400" />}
                       {conv.title}
                     </span>
                     <span className="text-[11px] text-texto-500 flex-shrink-0">{relativeDate(conv.updated_at)}</span>
                   </div>
-                  {conv.engine_version && (
-                    <span className="text-[11px] text-marca-400">{conv.engine_version}</span>
+                  {versionsUsed(conv).length > 0 && (
+                    <span className="text-[11px] text-marca-400">{versionsUsed(conv).join(' · ')}</span>
                   )}
                   {matchSnippet && (
                     <p className="text-xs text-texto-500 mt-1 line-clamp-2">

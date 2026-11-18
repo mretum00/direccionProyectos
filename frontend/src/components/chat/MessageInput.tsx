@@ -6,13 +6,16 @@ const MAX_TEXTAREA_HEIGHT_PX = 120;
 interface MessageInputProps {
   /** false mientras falte versión o tipo de usuario: el placeholder lo indica y enviar abre el selector. */
   ready: boolean;
+  /** Hay una consulta en curso en ESTA conversación: se muestra el botón de cancelar. */
   loading: boolean;
+  /** Hay una consulta en curso en OTRA conversación: no se puede enviar hasta que termine. */
+  blocked?: boolean;
   /** Devuelve false si no se ha enviado (el texto se conserva). */
   onSend: (text: string) => boolean;
   onCancel: () => void;
 }
 
-export function MessageInput({ ready, loading, onSend, onCancel }: MessageInputProps) {
+export function MessageInput({ ready, loading, blocked = false, onSend, onCancel }: MessageInputProps) {
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -30,7 +33,7 @@ export function MessageInput({ ready, loading, onSend, onCancel }: MessageInputP
 
   function handleSubmit() {
     const trimmed = text.trim();
-    if (!trimmed || loading) return;
+    if (!trimmed || loading || blocked) return;
     if (onSend(trimmed)) setText('');
   }
 
@@ -50,7 +53,13 @@ export function MessageInput({ ready, loading, onSend, onCancel }: MessageInputP
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder={ready ? 'Escribe tu consulta técnica…' : 'Elige versión y tipo de usuario para empezar…'}
+            placeholder={
+              blocked
+                ? 'Espera a que termine la consulta de otra conversación…'
+                : ready
+                  ? 'Escribe tu consulta técnica…'
+                  : 'Elige versión y tipo de usuario para empezar…'
+            }
             rows={1}
             readOnly={loading}
             className="flex-1 bg-transparent text-sm leading-5 py-1.5 text-texto placeholder-texto-500 outline-none resize-none read-only:opacity-50"
@@ -69,9 +78,9 @@ export function MessageInput({ ready, loading, onSend, onCancel }: MessageInputP
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={!text.trim()}
+              disabled={!text.trim() || blocked}
               aria-label="Enviar consulta"
-              className="flex items-center justify-center w-8 h-8 rounded-lg bg-marca-500 text-white disabled:bg-contraste/5 disabled:text-texto-600 hover:bg-marca-400 transition-colors flex-shrink-0"
+              className="btn-primario w-8 h-8 flex-shrink-0 shadow-none"
             >
               <Send className="w-4 h-4" />
             </button>

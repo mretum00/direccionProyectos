@@ -1,40 +1,23 @@
-import { useState } from 'react';
-import { Loader2, Upload, AlertCircle, ExternalLink  } from 'lucide-react';
-import type { TechnicalDocument, DocumentStatus } from '@/types/document';
+import { AlertCircle, ExternalLink, Loader2 } from 'lucide-react';
+import type { DocumentStatus, TechnicalDocument } from '@/types/document';
 import { api } from '@/services/api';
-import { config } from '@/config';
 import { SOURCE_TYPES } from '@/utils/sourceTypes';
+import { InfoRow } from '@/components/ui/PageLayout';
 
 const STATUS_CONFIG: Record<DocumentStatus, { label: string; color: string }> = {
-  processed: { label: 'Procesado', color: 'text-green-400 bg-green-500/10' },
-  pending: { label: 'Pendiente', color: 'text-amber-400 bg-amber-500/10' },
-  failed: { label: 'Fallido', color: 'text-red-400 bg-red-500/10' },
+  processed: { label: 'Procesado', color: 'insignia-exito' },
+  pending: { label: 'Pendiente', color: 'insignia-aviso' },
+  failed: { label: 'Fallido', color: 'insignia-peligro' },
 };
 
 interface DocumentListProps {
   documents: TechnicalDocument[];
   loading: boolean;
-  endpointAvailable: boolean;
+  /** false si no se ha podido pedir la lista al backend. */
+  available: boolean;
 }
 
-export function DocumentList({ documents, loading, endpointAvailable }: DocumentListProps) {
-  const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    setUploadError(null);
-    try {
-      await api.uploadDocument(file);
-    } catch {
-      setUploadError('No se ha podido subir el documento');
-    } finally {
-      setUploading(false);
-    }
-  }
-
+export function DocumentList({ documents, loading, available }: DocumentListProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -43,71 +26,56 @@ export function DocumentList({ documents, loading, endpointAvailable }: Document
     );
   }
 
-  if (!endpointAvailable) {
+  if (!available) {
     return (
       <div className="text-center py-12">
         <AlertCircle className="w-8 h-8 text-texto-600 mx-auto mb-3" />
-        <p className="text-sm text-texto-400">El endpoint de documentación no está disponible</p>
-        <p className="text-xs text-texto-600 mt-1">Cuando el backend lo soporte, los documentos aparecerán aquí</p>
+        <p className="text-sm text-texto-400">No se ha podido cargar la documentación</p>
+        <p className="text-xs text-texto-600 mt-1">Comprueba que el backend está en marcha y recarga la página</p>
+      </div>
+    );
+  }
+
+  if (documents.length === 0) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-sm text-texto-500">No hay documentos indexados</p>
+        <p className="text-xs text-texto-600 mt-1">Genera la base de datos con backend/db/database_generator.py</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {config.enableDocumentUpload && (
-        <div className="flex items-center gap-3">
-          <label className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium cursor-pointer transition-colors ${
-            uploading ? 'bg-texto-500/10 text-texto-500' : 'bg-marca-500/10 text-marca-400 hover:bg-marca-500/20'
-          }`}>
-            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            {uploading ? 'Subiendo...' : 'Añadir documento'}
-            <input type="file" accept=".pdf" onChange={handleUpload} disabled={uploading} className="hidden" />
-          </label>
-          {uploadError && <span className="text-xs text-red-400">{uploadError}</span>}
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 gap-2">
-        {documents.map((doc) => {
-          const typeConfig = SOURCE_TYPES[doc.type] ?? SOURCE_TYPES.manual;
-          const statusConfig = STATUS_CONFIG[doc.status] ?? STATUS_CONFIG.pending;
-          const Icon = typeConfig.icon;
-          return (
-            <a
-              key={doc.id}
-              href={api.documentFileUrl(doc.id)}
-              target="_blank"
-              rel="noopener noreferrer"
-              title="Abrir PDF"
-              className="flex items-center gap-3 p-3 rounded-lg bg-tarjeta border border-contraste/5 hover:border-marca-500/40 transition-colors cursor-pointer"
-            >
-              <div className="w-9 h-9 rounded-md bg-contraste/5 flex items-center justify-center flex-shrink-0">
-                <Icon className="w-4 h-4 text-texto-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-texto-200 truncate">{doc.filename}</div>
-                <div className="flex items-center gap-2 text-[11px] text-texto-500 mt-0.5">
+    <div className="grid grid-cols-1 gap-2">
+      {documents.map((doc) => {
+        const typeConfig = SOURCE_TYPES[doc.type] ?? SOURCE_TYPES.manual;
+        const statusConfig = STATUS_CONFIG[doc.status] ?? STATUS_CONFIG.pending;
+        return (
+          <a
+            key={doc.id}
+            href={api.documentFileUrl(doc.id)}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Abrir PDF"
+            className="tarjeta-interactiva fila cursor-pointer"
+          >
+            <InfoRow
+              icon={typeConfig.icon}
+              title={doc.filename}
+              detail={
+                <>
                   <span>{typeConfig.label}</span>
                   <span>· {doc.engine_version}</span>
                   {doc.pages > 0 && <span>· {doc.pages} pág.</span>}
                   <span>· {new Date(doc.uploaded_at).toLocaleDateString('es-ES')}</span>
-                </div>
-              </div>
-              <span className={`text-[11px] px-2 py-0.5 rounded ${statusConfig.color} flex-shrink-0`}>
-                {statusConfig.label}
-              </span>
-              <ExternalLink className="w-4 h-4 text-texto-500 flex-shrink-0" />
-            </a>
-          );
-        })}
-      </div>
-
-      {documents.length === 0 && (
-        <div className="text-center py-8">
-          <p className="text-sm text-texto-500">No hay documentos disponibles</p>
-        </div>
-      )}
+                </>
+              }
+              badge={<span className={`${statusConfig.color} flex-shrink-0`}>{statusConfig.label}</span>}
+              actionIcon={ExternalLink}
+            />
+          </a>
+        );
+      })}
     </div>
   );
 }

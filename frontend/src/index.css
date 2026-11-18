@@ -3,8 +3,16 @@
 @tailwind utilities;
 
 /*
- * Paleta de colores de la app. Cambiar un valor aquí cambia ese color en toda la app.
- * Formato "R G B" (sin comas) para que Tailwind pueda aplicar opacidad: bg-contraste/5.
+ * TEMA DE LA APLICACIÓN: único sitio donde se definen colores y estilos compartidos.
+ *
+ * 1. Paleta (:root): cambiar un valor aquí cambia ese color en toda la app.
+ *    Formato "R G B" (sin comas) para que Tailwind pueda aplicar opacidad: bg-contraste/5.
+ *    tailwind.config.js las registra como clases (bg-fondo, text-marca-400, border-peligro-500/30...).
+ * 2. Componentes (@layer components): botones, campos, tarjetas, avisos e insignias.
+ *    Las vistas usan estas clases en vez de repetir utilidades, para que todo se vea igual.
+ *
+ * Regla: en los componentes no se usan colores sueltos de Tailwind (red-400, green-500, white...),
+ * solo los de esta paleta.
  */
 :root {
   --color-fondo: 10 10 11;        /* #0a0a0b  fondo principal */
@@ -22,11 +30,26 @@
   --color-texto-600: 107 114 128; /* pistas secundarias (atajos, fechas): el más tenue legible */
   --color-texto-700: 55 65 81;    /* solo iconos decorativos, nunca texto */
 
-  /* Azul de marca (logo ARSOFT, #028CC5): botones, enlaces, selección y acentos. */
-  --color-marca-300: 102 200 235;
-  --color-marca-400: 51 170 221;  /* texto y detalles sobre fondo oscuro */
-  --color-marca-500: 2 140 197;   /* azul exacto del logo */
-  --color-marca-600: 2 112 158;
+  /* Azul de marca (logo ARSOFT, #008BC2): botones, enlaces, selección y acentos.
+     Los demás tonos salen de mezclar ese azul con blanco o negro, así conservan el mismo matiz. */
+  --color-marca-300: 102 185 218; /* #66B9DA  40 % blanco */
+  --color-marca-400: 51 162 206;  /* #33A2CE  20 % blanco: texto y detalles sobre fondo oscuro */
+  --color-marca-500: 0 139 194;   /* #008BC2  azul exacto del logo */
+  --color-marca-600: 0 111 155;   /* #006F9B  20 % negro: degradados y hover */
+  --color-sobre-marca: 255 255 255; /* texto e iconos encima del azul de marca o de un botón de peligro */
+
+  /* Estados: éxito (evidencia alta, procesado), aviso (falta un dato, favoritos) y peligro (errores, borrar). */
+  --color-exito-300: 134 239 172;
+  --color-exito-400: 74 222 128;
+  --color-exito-500: 34 197 94;
+  --color-aviso-300: 252 211 77;
+  --color-aviso-400: 251 191 36;
+  --color-aviso-500: 245 158 11;
+  --color-peligro-300: 252 165 165;
+  --color-peligro-400: 248 113 113;
+  --color-peligro-500: 239 68 68;
+
+  --color-sombra: 0 0 0;          /* capa oscura detrás de modales y del menú móvil */
 }
 
 @layer base {
@@ -36,6 +59,127 @@
   }
   body {
     background-color: rgb(var(--color-fondo));
+  }
+
+  /*
+   * Autorrelleno del navegador: Chrome/Edge pintan el campo de blanco/azul claro y no dejan cambiar
+   * su fondo. Se tapa con una sombra interior del color del campo y se fuerza el color del texto.
+   */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-text-fill-color: rgb(var(--color-texto));
+    caret-color: rgb(var(--color-texto));
+    -webkit-box-shadow: 0 0 0 1000px rgb(var(--color-fondo)) inset;
+    box-shadow: 0 0 0 1000px rgb(var(--color-fondo)) inset;
+    transition: background-color 9999s ease-out 0s;
+  }
+  /* El anillo de foco de .campo también es una sombra: se repite aquí para no perderlo. */
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px rgb(var(--color-fondo)) inset, 0 0 0 2px rgb(var(--color-marca-400) / 0.2);
+    box-shadow: 0 0 0 1000px rgb(var(--color-fondo)) inset, 0 0 0 2px rgb(var(--color-marca-400) / 0.2);
+  }
+}
+
+@layer components {
+  /* --- Botones: .btn + una variante. El tamaño (px, py, text-*) lo pone cada vista. --- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all
+      focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-marca-400
+      disabled:cursor-not-allowed;
+  }
+  /* Acción principal de la pantalla (enviar, aplicar, iniciar sesión, nueva conversación). */
+  .btn-primario {
+    @apply btn bg-gradient-to-r from-marca-500 to-marca-600 text-sobre-marca shadow-lg shadow-marca-500/10
+      hover:from-marca-400 hover:to-marca-500
+      disabled:from-contraste/5 disabled:to-contraste/5 disabled:text-texto-600 disabled:shadow-none;
+  }
+  /* Acción secundaria sin fondo (cancelar, cerrar). */
+  .btn-secundario {
+    @apply btn text-texto-400 hover:bg-contraste/5 hover:text-texto disabled:opacity-50;
+  }
+  /* Acción destructiva (borrar). */
+  .btn-peligro {
+    @apply btn bg-peligro-500/80 text-sobre-marca hover:bg-peligro-500 disabled:opacity-50;
+  }
+
+  /* --- Campos de formulario (input, select, textarea) --- */
+  .campo {
+    @apply w-full rounded-lg border border-contraste/10 bg-fondo text-sm text-texto placeholder-texto-500
+      outline-none transition-colors focus:border-marca-400 focus:ring-2 focus:ring-marca-400/20 disabled:opacity-60;
+  }
+  .etiqueta {
+    @apply mb-1 block text-[11px] text-texto-500;
+  }
+
+  /* --- Superficies --- */
+  .tarjeta {
+    @apply rounded-xl border border-contraste/5 bg-tarjeta;
+  }
+  /* Tarjeta que se puede pulsar (sugerencias, documentos, fuentes). */
+  .tarjeta-interactiva {
+    @apply tarjeta transition-colors hover:border-marca-500/30 hover:bg-marca-500/5;
+  }
+  /* Superficie que flota sobre el resto (modales, menús desplegables, formulario de acceso). */
+  .panel-flotante {
+    @apply rounded-xl border border-contraste/10 bg-tarjeta shadow-2xl;
+  }
+  /* Fila de una lista (documentos, información del sistema): se combina con .tarjeta o .tarjeta-interactiva. */
+  .fila {
+    @apply flex items-center gap-3 rounded-lg p-3;
+  }
+  /* Círculo o cuadrado con el degradado de marca (avatar del asistente, icono de bienvenida). */
+  .icono-marca {
+    @apply flex flex-shrink-0 items-center justify-center bg-gradient-to-br from-marca-500 to-marca-600 text-sobre-marca;
+  }
+  /* Avisos flotantes (src/toast.tsx): se apilan abajo a la derecha, el más nuevo abajo. */
+  .pila-toasts {
+    @apply pointer-events-none fixed bottom-6 right-6 z-[70] flex w-80 max-w-[calc(100vw-3rem)] flex-col gap-2;
+  }
+  .toast {
+    @apply pointer-events-auto flex items-start gap-3 rounded-lg border border-contraste/10 bg-elevado p-4 shadow-2xl;
+  }
+  .capa-fondo {
+    @apply fixed inset-0 bg-sombra/60;
+  }
+
+  /* --- Avisos en bloque: .alerta + estado --- */
+  .alerta {
+    @apply flex items-start gap-3 rounded-xl border p-4 text-sm;
+  }
+  .alerta-peligro {
+    @apply alerta border-peligro-500/30 bg-peligro-500/10 text-peligro-300;
+  }
+  .alerta-aviso {
+    @apply alerta border-aviso-500/30 bg-aviso-500/10 text-aviso-300;
+  }
+  .alerta-exito {
+    @apply alerta border-exito-500/30 bg-exito-500/10 text-exito-300;
+  }
+  /* Información neutra (sesión cerrada, avisos que no son errores). */
+  .alerta-info {
+    @apply alerta border-marca-500/30 bg-marca-500/10 text-marca-300;
+  }
+  /* Campo con un error: se combina con .campo (aria-invalid lo marca para lectores de pantalla). */
+  .campo-error {
+    @apply border-peligro-500/60 focus:border-peligro-400 focus:ring-peligro-400/20;
+  }
+
+  /* --- Insignias de estado (evidencia, documento procesado...): .insignia + estado --- */
+  .insignia {
+    @apply inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium;
+  }
+  .insignia-exito {
+    @apply insignia bg-exito-500/10 text-exito-400;
+  }
+  .insignia-aviso {
+    @apply insignia bg-aviso-500/10 text-aviso-400;
+  }
+  .insignia-peligro {
+    @apply insignia bg-peligro-500/10 text-peligro-400;
+  }
+  .insignia-neutra {
+    @apply insignia bg-contraste/5 text-texto-400;
   }
 }
 

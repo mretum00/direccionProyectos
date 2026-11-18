@@ -25,3 +25,9 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# TypeScript (caché de compilación)
+*.tsbuildinfo
+
+# BD de usuarios y chats: se crea sola al arrancar el backend y tiene datos personales
+thermodrive_app.db*

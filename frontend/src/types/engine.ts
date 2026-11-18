@@ -14,6 +14,12 @@ export interface EngineSelection {
   profile: Profile | '';
 }
 
+/** "V2.0 · Mecánico": cómo se muestra una versión con su perfil en toda la app. */
+export function formatSelection(engineVersion?: string, profile?: Profile | ''): string {
+  const profileLabel = PROFILES.find((p) => p.value === profile)?.label;
+  return [engineVersion, profileLabel].filter(Boolean).join(' · ');
+}
+
 /** Nombres de los datos que aún faltan por elegir (vacío si la selección está completa). */
 export function missingSelection(selection: EngineSelection): string[] {
   return [

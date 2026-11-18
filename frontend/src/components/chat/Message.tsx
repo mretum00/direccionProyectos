@@ -4,7 +4,6 @@ import { User, Bot, AlertTriangle, Settings2 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import type { ChatMessage } from '@/types/chat';
 import { EvidencePanel } from '@/components/sources/EvidencePanel';
-import { missingSelection } from '@/types/engine';
 import { parseAnswer, stripSourceReferences, type ParsedAnswer } from '@/utils/answer';
 
 // Estilos del markdown definidos como variantes de Tailwind sobre el contenedor:
@@ -57,39 +56,30 @@ interface MessageProps {
   message: ChatMessage;
 }
 
-/** Aviso destacado en ámbar cuando falta un dato (versión o tipo de usuario) para poder responder. */
-function ClarificationMessage() {
-  const { engineSelection, setEngineSelectorOpen } = useAppStore();
-  // Si ya no falta nada (aviso antiguo), se menciona todo lo necesario.
-  const missing = missingSelection(engineSelection);
-  const needed = missing.length > 0 ? missing : missingSelection({ engine_version: '', profile: '' });
+/**
+ * Aviso destacado en ámbar cuando el backend no ha podido responder porque falta la versión o no
+ * la reconoce. El texto es el del backend (explica qué falta); el botón abre el selector.
+ */
+function ClarificationMessage({ content }: { content: string }) {
+  const { setEngineSelectorOpen } = useAppStore();
 
   return (
     <div className="flex justify-start animate-in">
       <div className="flex items-start gap-2.5 max-w-[88%] w-full">
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-marca-500 to-marca-600 flex items-center justify-center flex-shrink-0">
-          <Bot className="w-4 h-4 text-white" />
+        <div className="icono-marca w-8 h-8 rounded-full">
+          <Bot className="w-4 h-4 text-sobre-marca" />
         </div>
 
-        <div className="flex-1 min-w-0 rounded-2xl rounded-tl-sm bg-amber-500/10 border border-amber-500/30 px-4 py-3 space-y-3">
-          <div className="flex items-center gap-2 text-amber-400 text-[11px] font-semibold uppercase tracking-wider">
+        <div className="flex-1 min-w-0 rounded-2xl rounded-tl-sm bg-aviso-500/10 border border-aviso-500/30 px-4 py-3 space-y-3">
+          <div className="flex items-center gap-2 text-aviso-400 text-[11px] font-semibold uppercase tracking-wider">
             <AlertTriangle className="w-4 h-4" />
             Falta configurar tu consulta
           </div>
-          <p className="text-sm text-texto-300 leading-relaxed">
-            Para responderte necesito saber tu{' '}
-            {needed.map((item, i) => (
-              <span key={item}>
-                {i > 0 && ' y tu '}
-                <strong className="font-semibold text-amber-400">{item}</strong>
-              </span>
-            ))}
-            . Elígelo en el selector y responderé a tu pregunta automáticamente.
-          </p>
+          <p className="text-sm text-texto-300 leading-relaxed">{content}</p>
           <button
             type="button"
             onClick={() => setEngineSelectorOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-500/20 text-amber-300 text-xs font-medium hover:bg-amber-500/30 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-aviso-500/20 text-aviso-300 text-xs font-medium hover:bg-aviso-500/30 transition-colors"
           >
             <Settings2 className="w-3.5 h-3.5" />
             Abrir selector de motor
@@ -117,7 +107,7 @@ function MessageComponent({ message }: MessageProps) {
   }
 
   if (message.response?.needs_clarification) {
-    return <ClarificationMessage />;
+    return <ClarificationMessage content={message.content} />;
   }
 
   const sources = message.response?.sources;
@@ -127,8 +117,8 @@ function MessageComponent({ message }: MessageProps) {
   return (
     <div className="flex justify-start animate-in">
       <div className="flex items-start gap-2.5 max-w-[88%] w-full">
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-marca-500 to-marca-600 flex items-center justify-center flex-shrink-0">
-          <Bot className="w-4 h-4 text-white" />
+        <div className="icono-marca w-8 h-8 rounded-full">
+          <Bot className="w-4 h-4 text-sobre-marca" />
         </div>
 
         <div className="flex-1 min-w-0 space-y-3 pt-1">

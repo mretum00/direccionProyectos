@@ -5,13 +5,20 @@ import { useAppStore } from '@/store/appStore';
 import { useConversations } from '@/hooks/useConversations';
 import { relativeDate } from '@/utils/dateUtils';
 import { toPlainPreview } from '@/utils/text';
+import { versionsUsed } from '@/utils/conversation';
 import { ConfirmationModal } from './ConfirmationModal';
 
 interface ConversationItemProps {
   conversation: Conversation;
+  /** Se llama al abrir la conversación: vuelve a la página del chat y cierra el menú móvil. */
+  onNavigate: () => void;
 }
 
-export function ConversationItem({ conversation }: ConversationItemProps) {
+/** Clase de las opciones del menú; las desactivadas se ven atenuadas. */
+const MENU_ITEM_CLASS =
+  'w-full flex items-center gap-2 px-3 py-1.5 text-xs text-texto-300 hover:bg-contraste/5 disabled:opacity-40 disabled:hover:bg-transparent disabled:cursor-not-allowed';
+
+export function ConversationItem({ conversation, onNavigate }: ConversationItemProps) {
   const store = useAppStore();
   const { selectConversation, renameConversation, deleteConversation, duplicateConversation, toggleFavorite } = useConversations();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -22,6 +29,9 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
 
   const isActive = store.activeConversationId === conversation.id;
   const lastMessage = conversation.messages[conversation.messages.length - 1];
+  const versions = versionsUsed(conversation);
+  // Hasta que el backend guarde la primera respuesta, el chat solo existe aquí: solo se puede eliminar.
+  const notSavedYet = conversation.local ? 'Disponible cuando se guarde la primera respuesta' : undefined;
 
   // Un listener global por ítem de la lista era innecesario: solo existe con el menú abierto.
   useEffect(() => {
@@ -41,7 +51,10 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
   return (
     <>
       <div
-        onClick={() => selectConversation(conversation.id)}
+        onClick={() => {
+          selectConversation(conversation.id);
+          onNavigate();
+        }}
         className={`group relative flex items-start gap-2 px-2.5 py-2 rounded-lg cursor-pointer transition-colors ${
           isActive ? 'bg-marca-500/10' : 'hover:bg-contraste/5'
         }`}
@@ -60,7 +73,7 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
                 if (e.key === 'Escape') setRenaming(false);
               }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full bg-fondo border border-marca-500/30 rounded px-1.5 py-0.5 text-xs text-texto outline-none"
+              className="campo rounded px-1.5 py-0.5 text-xs border-marca-500/30"
             />
           ) : (
             <div className={`text-xs font-medium truncate ${isActive ? 'text-marca-300' : 'text-texto-200'}`}>
@@ -68,14 +81,14 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
             </div>
           )}
           <div className="flex items-center gap-1.5 mt-0.5">
-            {conversation.favorite && <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400 flex-shrink-0" />}
+            {conversation.favorite && <Star className="w-2.5 h-2.5 text-aviso-400 fill-aviso-400 flex-shrink-0" />}
             <span className="text-[11px] text-texto-500 truncate">
               {lastMessage ? toPlainPreview(lastMessage.content).slice(0, 40) : 'Sin mensajes'}
             </span>
             <span className="text-[11px] text-texto-600 flex-shrink-0">{relativeDate(conversation.updated_at)}</span>
           </div>
-          {conversation.engine_version && (
-            <span className="inline-block mt-0.5 text-[11px] text-texto-600">{conversation.engine_version}</span>
+          {versions.length > 0 && (
+            <span className="inline-block mt-0.5 text-[11px] text-texto-600">{versions.join(' · ')}</span>
           )}
         </div>
 
@@ -92,27 +105,33 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
               onClick={(e) => e.stopPropagation()}
             >
               <button
-                onClick={() => { setRenaming(true); setMenuOpen(false); }}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-texto-300 hover:bg-contraste/5"
+                onClick={() => { setRenameValue(conversation.title); setRenaming(true); setMenuOpen(false); }}
+                disabled={!!notSavedYet}
+                title={notSavedYet}
+                className={MENU_ITEM_CLASS}
               >
                 <Pencil className="w-3 h-3" /> Renombrar
               </button>
               <button
                 onClick={() => { duplicateConversation(conversation.id); setMenuOpen(false); }}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-texto-300 hover:bg-contraste/5"
+                disabled={!!notSavedYet}
+                title={notSavedYet}
+                className={MENU_ITEM_CLASS}
               >
                 <Copy className="w-3 h-3" /> Duplicar
               </button>
               <button
                 onClick={() => { toggleFavorite(conversation.id); setMenuOpen(false); }}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-texto-300 hover:bg-contraste/5"
+                disabled={!!notSavedYet}
+                title={notSavedYet}
+                className={MENU_ITEM_CLASS}
               >
                 <Star className="w-3 h-3" /> {conversation.favorite ? 'Quitar favorita' : 'Marcar favorita'}
               </button>
               <div className="h-px bg-contraste/5 my-1" />
               <button
                 onClick={() => { setConfirmDelete(true); setMenuOpen(false); }}
-                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-red-400 hover:bg-red-500/10"
+                className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-peligro-400 hover:bg-peligro-500/10"
               >
                 <Trash2 className="w-3 h-3" /> Eliminar
               </button>

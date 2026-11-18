@@ -6,19 +6,9 @@
 
 const env = import.meta.env;
 
-function flag(value: string | undefined): boolean {
-  return value?.trim().toLowerCase() === 'true';
-}
-
 export const config = {
   /** URL base del backend FastAPI (sin barra final). */
   apiUrl: (env.VITE_API_URL ?? '').trim().replace(/\/+$/, ''),
-  /** Activa el botón de subida de PDF en la pantalla de documentación. */
-  enableDocumentUpload: flag(env.VITE_ENABLE_DOCUMENT_UPLOAD),
-  /** Versión preseleccionada al abrir la app (debe ser una de GET /api/versions). Vacío = sin seleccionar. */
-  defaultEngineVersion: (env.VITE_DEFAULT_ENGINE_VERSION ?? '').trim(),
-  /** El contrato de la API fija en 6 los mensajes previos que viajan en `history`. */
-  chatHistoryLimit: 6,
 } as const;
 
 if (!config.apiUrl) {

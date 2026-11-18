@@ -1,7 +1,9 @@
-"""Modelos Pydantic del contrato API (ver docs/API_CONTRACT.md)."""
+"""Modelos Pydantic del contrato de la API (los endpoints están en routers/)."""
 
+import re
 from enum import Enum
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -40,16 +42,16 @@ class DocumentStatus(str, Enum):
 Role = Literal["user", "assistant"]
 
 
-class HistoryItem(BaseModel):
-    role: Role
-    content: str
-
-
 class ChatRequest(BaseModel):
+    # UUID que genera el frontend al empezar un chat. Si aún no existe, la conversación se crea
+    # con la primera pregunta. El historial lo lee el backend de la BD: el cliente no lo envía.
+    conversation_id: UUID
+    # Id de la pregunta, generado por el frontend. Si se reenvía la misma pregunta (reintento tras
+    # cancelar o perder la conexión) y ya estaba respondida, se devuelve lo guardado sin duplicarla.
+    message_id: UUID
     message: str
     engine_version: str = ""
     profile: Profile  # obligatorio: sin tipo de usuario la petición se rechaza (422)
-    history: list[HistoryItem] = Field(default_factory=list)
 
     @field_validator("message")
     @classmethod
@@ -75,12 +77,106 @@ class Source(BaseModel):
     excerpt: str | None = None
 
 
-class ChatResponse(BaseModel):
-    message: MessageResponse
+class AnswerMeta(BaseModel):
+    """La respuesta del asistente sin el texto: se guarda junto a cada mensaje del asistente."""
+
     evidence_status: EvidenceStatus | None = None
     needs_clarification: bool = False
     documents_consulted: int | None = None
     sources: list[Source] | None = None
+
+
+class ChatResponse(AnswerMeta):
+    message: MessageResponse
+    # La conversación ya guardada (con la pregunta y esta respuesta): el frontend la sustituye tal cual.
+    conversation: "ConversationOut"
+
+
+# --- Conversaciones -----------------------------------------------------------
+
+
+class StoredMessage(BaseModel):
+    id: str
+    role: Role
+    content: str
+    created_at: str
+    # Versión y perfil con los que se hizo esta pregunta (o para los que se respondió).
+    engine_version: str = ""
+    profile: Profile | Literal[""] = ""
+    response: AnswerMeta | None = None
+
+
+class ConversationOut(BaseModel):
+    """`engine_version` y `profile` son los últimos usados: el chat se reanuda con ellos."""
+
+    id: str
+    title: str
+    created_at: str
+    updated_at: str
+    favorite: bool
+    engine_version: str
+    profile: Profile | Literal[""]
+    messages: list[StoredMessage]
+
+
+class ConversationsListResponse(BaseModel):
+    conversations: list[ConversationOut]
+
+
+class ConversationUpdate(BaseModel):
+    """Cambios parciales: solo se aplican los campos que vienen."""
+
+    title: str | None = Field(default=None, min_length=1, max_length=120)
+    favorite: bool | None = None
+
+    @field_validator("title")
+    @classmethod
+    def _title_not_blank(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            raise ValueError("El título no puede estar vacío")
+        return value
+
+
+# --- Usuarios -----------------------------------------------------------------
+
+# De 3 a 50 caracteres y sin espacios (vale un nombre o un correo).
+USERNAME_PATTERN = re.compile(r"^\S{3,50}$")
+
+
+class Credentials(BaseModel):
+    username: str
+    password: str = Field(min_length=1, max_length=128)
+
+    @field_validator("username")
+    @classmethod
+    def _normalize_username(cls, value: str) -> str:
+        # Sin distinción de mayúsculas: "Pepe" y "pepe" son el mismo usuario.
+        return value.strip().lower()
+
+
+class RegisterRequest(Credentials):
+    password: str = Field(min_length=8, max_length=128)
+
+    @field_validator("username")
+    @classmethod
+    def _valid_username(cls, value: str) -> str:
+        if not USERNAME_PATTERN.match(value):
+            raise ValueError("El usuario debe tener entre 3 y 50 caracteres y no puede tener espacios")
+        return value
+
+
+class UserOut(BaseModel):
+    id: int
+    username: str
+    created_at: str
+
+
+class LoginResponse(BaseModel):
+    token: str
+    user: UserOut
 
 
 # --- Versiones --------------------------------------------------------------
@@ -105,3 +201,7 @@ class TechnicalDocument(BaseModel):
 
 class DocumentsListResponse(BaseModel):
     documents: list[TechnicalDocument] = Field(default_factory=list)
+
+
+# ChatResponse usa ConversationOut antes de que se defina.
+ChatResponse.model_rebuild()

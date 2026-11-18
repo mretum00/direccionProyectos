@@ -12,7 +12,7 @@ const SUGGESTIONS = [
   },
   {
     icon: AlertTriangle,
-    text: '¿Qué significa el código DTC P0217?',
+    text: '¿Qué significa el código de avería HTM-0101?',
     hint: 'Código de avería',
   },
   {
@@ -31,8 +31,8 @@ export function WelcomeScreen({ onSuggestion }: WelcomeScreenProps) {
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center py-12">
       <div className="relative mb-6">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-marca-500 to-marca-600 flex items-center justify-center shadow-xl shadow-marca-500/20">
-          <Sparkles className="w-8 h-8 text-white" />
+        <div className="icono-marca w-16 h-16 rounded-2xl shadow-xl shadow-marca-500/20">
+          <Sparkles className="w-8 h-8 text-sobre-marca" />
         </div>
       </div>
 
@@ -46,7 +46,7 @@ export function WelcomeScreen({ onSuggestion }: WelcomeScreenProps) {
           <button
             key={text}
             onClick={() => onSuggestion(text)}
-            className="group flex items-start gap-3 p-4 rounded-xl bg-tarjeta border border-contraste/5 hover:border-marca-500/20 hover:bg-marca-500/5 transition-all text-left"
+            className="tarjeta-interactiva group flex items-start gap-3 p-4 text-left"
           >
             <div className="w-9 h-9 rounded-lg bg-contraste/5 group-hover:bg-marca-500/10 flex items-center justify-center flex-shrink-0 transition-colors">
               <Icon className="w-4 h-4 text-texto-400 group-hover:text-marca-400 transition-colors" />

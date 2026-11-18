@@ -1,20 +1,20 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { config } from '@/config';
 import { api } from '@/services/api';
-import { conversationRepository } from '@/services/conversationRepository';
 import type { Conversation } from '@/types/conversation';
 import type { EngineSelection } from '@/types/engine';
 import { sortByUpdated } from '@/utils/conversation';
 import { AppStoreContext, type AppStore } from '@/store/appStore';
 import { ChatWindow } from '@/components/chat/ChatWindow';
 import { DocumentsPage } from '@/pages/DocumentsPage';
-import { SettingsPage } from '@/pages/SettingsPage';
+import { SystemInfoPage } from '@/pages/SystemInfoPage';
 import { Header } from '@/components/ui/Header';
+import { useToast } from '@/toast';
 import { Sidebar } from '@/components/conversations/ConversationSidebar';
 
-export type Page = 'chat' | 'documents' | 'settings';
+export type Page = 'chat' | 'documents' | 'system';
 
 export default function App() {
+  const toast = useToast();
   const [versions, setVersions] = useState<string[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -24,20 +24,14 @@ export default function App() {
   const [page, setPage] = useState<Page>('chat');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Versiones que admite el backend. Si el .env define una (VITE_DEFAULT_ENGINE_VERSION) y el backend la admite,
-  // queda preseleccionada al abrir la app.
+  // Versiones que admite el backend. Ninguna queda preseleccionada: el usuario elige versión y tipo de usuario
+  // en cada chat nuevo (al abrir un chat guardado, el selector recupera los últimos que se usaron en él).
   useEffect(() => {
     let active = true;
     api
       .listVersions()
       .then((list) => {
-        if (!active) return;
-        setVersions(list);
-        if (list.includes(config.defaultEngineVersion)) {
-          setEngineSelection((prev) =>
-            prev.engine_version ? prev : { ...prev, engine_version: config.defaultEngineVersion },
-          );
-        }
+        if (active) setVersions(list);
       })
       .catch(() => undefined);
     return () => {
@@ -45,23 +39,25 @@ export default function App() {
     };
   }, []);
 
-  // Carga única de las conversaciones guardadas (antes se repetía en cada ítem de la lista).
-  useEffect(() => {
-    let active = true;
-    conversationRepository
-      .list()
-      .then((stored) => {
-        if (!active) return;
-        setConversations((prev) => {
-          const known = new Set(prev.map((c) => c.id));
-          return sortByUpdated([...prev, ...stored.filter((c) => !known.has(c.id))]);
-        });
-      })
-      .catch(() => undefined);
-    return () => {
-      active = false;
-    };
+  /** Carga del backend los chats del usuario (al entrar y si una operación sobre ellos falla). */
+  const reloadConversations = useCallback(async () => {
+    const stored = await api.listConversations();
+    setConversations((prev) => {
+      // Se conservan los chats que aún no están guardados (primera pregunta en curso o fallida).
+      const known = new Set(stored.map((c) => c.id));
+      return sortByUpdated([...stored, ...prev.filter((c) => c.local && !known.has(c.id) && c.messages.length > 0)]);
+    });
   }, []);
+
+  useEffect(() => {
+    reloadConversations().catch(() =>
+      toast.show({
+        tone: 'peligro',
+        title: 'No se han podido cargar tus conversaciones',
+        description: 'Comprueba que el backend está en marcha y recarga la página.',
+      }),
+    );
+  }, [reloadConversations, toast]);
 
   const setEngineSelectorOpen = useCallback((open: boolean, prompted = false) => {
     setSelectorOpen(open);
@@ -91,8 +87,9 @@ export default function App() {
       setEngineSelectorOpen,
       upsertConversation,
       deleteConversation,
+      reloadConversations,
     }),
-    [versions, conversations, activeConversationId, engineSelection, engineSelectorOpen, engineSelectorPrompted, setEngineSelectorOpen, upsertConversation, deleteConversation],
+    [versions, conversations, activeConversationId, engineSelection, engineSelectorOpen, engineSelectorPrompted, setEngineSelectorOpen, upsertConversation, deleteConversation, reloadConversations],
   );
 
   return (
@@ -106,7 +103,7 @@ export default function App() {
         {/* Sidebar - mobile drawer */}
         {sidebarOpen && (
           <>
-            <div className="fixed inset-0 bg-black/60 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+            <div className="capa-fondo z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
             <div className="fixed left-0 top-0 bottom-0 w-72 z-50 lg:hidden">
               <Sidebar onNavigate={() => { setPage('chat'); setSidebarOpen(false); }} />
             </div>
@@ -123,7 +120,7 @@ export default function App() {
           <div className="flex-1 overflow-hidden">
             {page === 'chat' && <ChatWindow />}
             {page === 'documents' && <DocumentsPage />}
-            {page === 'settings' && <SettingsPage />}
+            {page === 'system' && <SystemInfoPage />}
           </div>
         </div>
       </div>

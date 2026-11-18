@@ -1,12 +1,10 @@
-import { useRef, useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useRef, useState } from 'react';
 import { Settings2, ChevronDown, AlertTriangle, Check, Info, User, Wrench, type LucideIcon } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { ToggleGroup } from '@/components/ui/ToggleGroup';
+import { useToast } from '@/toast';
 import type { Profile } from '@/types/chat';
 import { ENGINE_NAME, PROFILES, isSelectionComplete, missingSelection, type EngineSelection } from '@/types/engine';
-
-const APPLIED_NOTICE_MS = 2500;
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return <p className="mb-2 text-xs font-semibold text-texto-200">{children}</p>;
@@ -73,18 +71,18 @@ function SelectorPanel({ versions, initial, prompted, onApply, onCancel }: Selec
   const missing = missingSelection(draft);
 
   return (
-    <div className="absolute right-0 top-full mt-2 w-[22rem] max-w-[calc(100vw-2rem)] bg-tarjeta border border-contraste/10 rounded-xl shadow-2xl z-50 overflow-hidden animate-in">
+    <div className="absolute right-0 top-full mt-2 w-[22rem] max-w-[calc(100vw-2rem)] panel-flotante z-50 overflow-hidden animate-in">
       <div className="px-5 pt-4 pb-3">
         <h3 className="text-sm font-semibold text-texto">Configura tu consulta</h3>
         <p className="mt-0.5 text-xs text-texto-400">Adaptamos las respuestas a tu motor y a tu forma de trabajar.</p>
       </div>
 
       {prompted && (
-        <div className="mx-5 mb-1 flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2.5">
-          <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-amber-400" />
+        <div className="alerta-aviso mx-5 mb-1 gap-2.5 rounded-lg px-3 py-2.5">
+          <Info className="mt-0.5 h-4 w-4 flex-shrink-0 text-aviso-400" />
           <p className="text-xs leading-relaxed text-texto-200">
             Antes de responderte necesito saber{' '}
-            <strong className="font-semibold text-amber-300">{missing.map((m) => `tu ${m}`).join(' y ')}</strong>.
+            <strong className="font-semibold text-aviso-300">{missing.map((m) => `tu ${m}`).join(' y ')}</strong>.
             Elígelo y enviaré tu pregunta automáticamente.
           </p>
         </div>
@@ -99,7 +97,7 @@ function SelectorPanel({ versions, initial, prompted, onApply, onCancel }: Selec
             onChange={(engine_version) => update({ engine_version })}
           />
           {versions.length === 0 && (
-            <p className="mt-2 flex items-center gap-1.5 text-[11px] text-amber-400">
+            <p className="mt-2 flex items-center gap-1.5 text-[11px] text-aviso-400">
               <AlertTriangle className="h-3 w-3" />
               No se han podido cargar las versiones: comprueba que el backend está en marcha
             </p>
@@ -125,14 +123,14 @@ function SelectorPanel({ versions, initial, prompted, onApply, onCancel }: Selec
       <div className="flex justify-end gap-2 border-t border-contraste/5 bg-fondo/40 px-5 py-3">
         <button
           onClick={onCancel}
-          className="px-3 py-1.5 rounded-md text-xs text-texto-400 hover:text-texto hover:bg-contraste/5 transition-colors"
+          className="btn-secundario px-3 py-1.5 rounded-md text-xs"
         >
           Cancelar
         </button>
         <button
           onClick={() => onApply(draft)}
           disabled={missing.length > 0}
-          className="px-4 py-1.5 rounded-md bg-marca-500 text-white text-xs font-medium hover:bg-marca-400 transition-colors disabled:bg-contraste/5 disabled:text-texto-600 disabled:cursor-not-allowed"
+          className="btn-primario px-4 py-1.5 rounded-md text-xs shadow-none"
         >
           Aplicar
         </button>
@@ -143,7 +141,7 @@ function SelectorPanel({ versions, initial, prompted, onApply, onCancel }: Selec
 
 export function EngineSelector() {
   const { versions, engineSelection: sel, setEngineSelection, engineSelectorOpen: open, engineSelectorPrompted: prompted, setEngineSelectorOpen: setOpen } = useAppStore();
-  const [applied, setApplied] = useState(false);
+  const toast = useToast();
   const ref = useRef<HTMLDivElement>(null);
   const complete = isSelectionComplete(sel);
   const profileLabel = PROFILES.find((p) => p.value === sel.profile)?.label;
@@ -158,17 +156,15 @@ export function EngineSelector() {
     return () => document.removeEventListener('mousedown', handler);
   }, [open, setOpen]);
 
-  // El aviso "Cambios aplicados" desaparece solo.
-  useEffect(() => {
-    if (!applied) return;
-    const timer = setTimeout(() => setApplied(false), APPLIED_NOTICE_MS);
-    return () => clearTimeout(timer);
-  }, [applied]);
-
   function handleApply(selection: EngineSelection) {
     setEngineSelection(selection);
     setOpen(false);
-    setApplied(true);
+    const label = PROFILES.find((p) => p.value === selection.profile)?.label;
+    toast.show({
+      tone: 'exito',
+      title: 'Cambios aplicados',
+      description: [ENGINE_NAME, selection.engine_version, label].filter(Boolean).join(' · '),
+    });
   }
 
   return (
@@ -202,31 +198,6 @@ export function EngineSelector() {
 
       {open && <SelectorPanel versions={versions} initial={sel} prompted={prompted} onApply={handleApply} onCancel={() => setOpen(false)} />}
 
-      {applied && <AppliedToast selection={sel} />}
     </div>
-  );
-}
-
-/** Aviso flotante (abajo a la derecha) que confirma que la selección se ha aplicado y cuál es. */
-function AppliedToast({ selection }: { selection: EngineSelection }) {
-  const profileLabel = PROFILES.find((p) => p.value === selection.profile)?.label;
-  const summary = [ENGINE_NAME, selection.engine_version, profileLabel].filter(Boolean).join(' · ');
-
-  // En un portal: el backdrop-blur de la cabecera haría que `fixed` se posicionara respecto a ella.
-  return createPortal(
-    <div
-      role="status"
-      aria-live="polite"
-      className="fixed bottom-6 right-6 z-[70] flex w-80 items-start gap-3 rounded-lg border border-contraste/10 bg-elevado p-4 shadow-2xl animate-toast-in"
-    >
-      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-green-500/10">
-        <Check className="h-4 w-4 text-green-400" />
-      </div>
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-texto">Cambios aplicados</p>
-        <p className="mt-0.5 truncate text-xs text-texto-400">{summary}</p>
-      </div>
-    </div>,
-    document.body,
   );
 }

@@ -50,7 +50,7 @@ npm run dev
 
 ## 3. Usar la aplicación
 
-Entra en **http://localhost:5173** y disfruta. 🚀
+Entra en **http://localhost:5173**. La primera vez, pulsa **Regístrate** para crear tu usuario y después inicia sesión. Tus conversaciones se guardan en el servidor y se cargan cada vez que entras con tu usuario, desde cualquier navegador.
 
 ---
 
@@ -62,3 +62,33 @@ Entra en **http://localhost:5173** y disfruta. 🚀
   python backend/db/database_generator.py
   ```
 - Si cambias el `.env`, reinicia el backend y el frontend.
+- Hay **dos bases de datos SQLite** en la raíz del proyecto:
+  - `thermodrive_rag.db`: fragmentos de los manuales para el RAG. La crea (y la borra antes de volver a crearla) `database_generator.py`.
+  - `thermodrive_app.db`: usuarios (con su sesión) y el historial de chats. Se crea sola al arrancar el backend, no se borra nunca y **no se sube a Git**.
+
+## Arquitectura y flujo de datos
+
+Las capas van siempre en el mismo sentido (de la vista a la base de datos):
+
+- **Frontend**: vistas (`pages/`, `components/`) → hooks (`useChat`, `useConversations`) y sesión (`auth.tsx`) → `services/api.ts`, el único sitio que llama al backend.
+- **Backend**: `routers/` (endpoints HTTP) → `services/` (lógica: `auth.py`, `rag_pipeline.py`...) y `db/repositories/` (el único sitio con consultas a la BD) → `db/models.py`.
+
+- Al iniciar sesión el backend devuelve un **token**; el frontend lo guarda y lo envía en cada petición (`Authorization: Bearer <token>`). En la BD solo se guarda su hash, en la fila del usuario (`users.token_hash` y `users.token_expires`): **cada usuario tiene una sola sesión**, y entrar desde otro navegador cierra la anterior. Si caduca, se cierra o se abre en otro sitio, el backend responde 401 y el frontend vuelve al login.
+- El backend es la **única fuente de verdad** de los chats: `POST /api/chat` lee el historial de la conversación de la BD, ejecuta el RAG y guarda la pregunta y la respuesta juntas (si el RAG falla no se guarda nada). Devuelve la conversación ya guardada.
+- Un chat nuevo no existe en el backend hasta que se envía su primera pregunta.
+
+| Método | Ruta | Sesión | Qué hace |
+|---|---|---|---|
+| POST | `/api/auth/register` | no | Crea un usuario (`username`, `password` ≥ 8 caracteres) |
+| POST | `/api/auth/login` | no | Devuelve `token` y `user` |
+| POST | `/api/auth/logout` | sí | Invalida el token |
+| GET | `/api/auth/me` | sí | Usuario de la sesión actual |
+| POST | `/api/chat` | sí | Pregunta al asistente y la guarda (`conversation_id`, `message_id`, `message`, `engine_version`, `profile`). Reenviar el mismo `message_id` devuelve la respuesta ya guardada sin duplicarla |
+| POST | `/api/chat/{message_id}/cancel` | sí | Cancela la pregunta: no se guarda aunque el RAG termine (y si ya estaba guardada, se borra con su respuesta) |
+| GET | `/api/conversations` | sí | Chats del usuario con sus mensajes |
+| PATCH | `/api/conversations/{id}` | sí | Renombrar (`title`) o marcar como favorita (`favorite`) |
+| POST | `/api/conversations/{id}/duplicate` | sí | Duplica el chat |
+| DELETE | `/api/conversations/{id}` | sí | Borra el chat y sus mensajes |
+| GET | `/api/versions`, `/api/documents` | no | Versiones del motor y documentación indexada |
+
+La documentación interactiva de todos los endpoints está en http://localhost:8000/docs.

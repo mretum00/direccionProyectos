@@ -1,10 +1,10 @@
 import { useCallback } from 'react';
-import { conversationRepository } from '@/services/conversationRepository';
+import { api } from '@/services/api';
 import { useAppStore } from '@/store/appStore';
+import { useToast } from '@/toast';
 import type { Conversation } from '@/types/conversation';
 import type { EngineSelection } from '@/types/engine';
-import { buildConversation } from '@/utils/conversation';
-import { uuid } from '@/utils/uuid';
+import { versionsUsed } from '@/utils/conversation';
 
 interface SearchFilters {
   engine_version?: string;
@@ -13,37 +13,58 @@ interface SearchFilters {
   dateTo?: string;
 }
 
-/** Acciones sobre conversaciones. La carga inicial se hace una sola vez en <App />. */
+const EMPTY_SELECTION: EngineSelection = { engine_version: '', profile: '' };
+
+/**
+ * Acciones sobre las conversaciones del usuario. Los cambios se ven al momento en la
+ * interfaz y se guardan en el backend; si el backend los rechaza, se avisa con un toast y se
+ * vuelve a cargar la lista desde el servidor para no mostrar datos que no están guardados.
+ * La carga inicial se hace una sola vez en <App />.
+ */
 export function useConversations() {
   const store = useAppStore();
+  const toast = useToast();
 
-  /** Actualiza el store y guarda la conversación. Un fallo al guardar se ignora: sigue en memoria. */
-  const persist = useCallback(
-    (conversation: Conversation) => {
-      store.upsertConversation(conversation);
-      conversationRepository.save(conversation).catch(() => undefined);
+  const resyncOnError = useCallback(
+    (promise: Promise<unknown>) => {
+      promise.catch(() => {
+        toast.show({
+          tone: 'peligro',
+          title: 'No se ha podido guardar el cambio',
+          description: 'Se ha vuelto a cargar la lista con lo que hay guardado en el servidor.',
+        });
+        store.reloadConversations().catch(() => undefined);
+      });
     },
-    [store],
+    [store, toast],
   );
 
-  /** Aplica `change` a una conversación existente y la marca como modificada ahora. */
+  /** Un chat local (primera pregunta en curso o fallida) no existe en el backend: solo se cambia en local. */
+  const isSaved = useCallback(
+    (id: string) => store.conversations.some((c) => c.id === id && !c.local),
+    [store.conversations],
+  );
+
+  /** Aplica el cambio en local y lo envía al backend, que devuelve la conversación guardada. */
   const update = useCallback(
-    (id: string, change: (conv: Conversation) => Partial<Conversation>) => {
+    (id: string, changes: { title?: string; favorite?: boolean }) => {
       const conv = store.conversations.find((c) => c.id === id);
       if (!conv) return;
-      persist({ ...conv, ...change(conv), updated_at: new Date().toISOString() });
+      store.upsertConversation({ ...conv, ...changes, updated_at: new Date().toISOString() });
+      if (!isSaved(id)) return;
+      resyncOnError(api.updateConversation(id, changes).then(store.upsertConversation));
     },
-    [store.conversations, persist],
+    [store, isSaved, resyncOnError],
   );
 
-  /** Cada chat nuevo empieza sin versión ni tipo de usuario: hay que elegirlos de nuevo. */
+  /**
+   * "Nueva conversación": deja el chat vacío, sin versión ni tipo de usuario (hay que elegirlos).
+   * La conversación se crea en el backend al enviar la primera pregunta.
+   */
   const createConversation = useCallback(() => {
-    const selection: EngineSelection = { engine_version: '', profile: '' };
-    const conv = buildConversation(selection);
-    persist(conv);
-    store.setActiveConversationId(conv.id);
-    store.setEngineSelection(selection);
-  }, [store, persist]);
+    store.setActiveConversationId(null);
+    store.setEngineSelection(EMPTY_SELECTION);
+  }, [store]);
 
   /** Al abrir una conversación, el selector recupera su versión y tipo de usuario. */
   const selectConversation = useCallback(
@@ -58,43 +79,58 @@ export function useConversations() {
   );
 
   const renameConversation = useCallback(
-    (id: string, title: string) => update(id, () => ({ title })),
+    (id: string, title: string) => update(id, { title }),
     [update],
   );
 
   const toggleFavorite = useCallback(
-    (id: string) => update(id, (conv) => ({ favorite: !conv.favorite })),
-    [update],
+    (id: string) => {
+      const conv = store.conversations.find((c) => c.id === id);
+      if (conv) update(id, { favorite: !conv.favorite });
+    },
+    [store.conversations, update],
   );
 
   /** Si se borra la conversación abierta, el selector vuelve a quedar vacío (como en un chat nuevo). */
   const deleteConversation = useCallback(
     (id: string) => {
+      const saved = isSaved(id);
+      const title = store.conversations.find((c) => c.id === id)?.title ?? '';
       store.deleteConversation(id);
       if (store.activeConversationId === id) {
         store.setActiveConversationId(null);
-        store.setEngineSelection({ engine_version: '', profile: '' });
+        store.setEngineSelection(EMPTY_SELECTION);
       }
-      conversationRepository.delete(id).catch(() => undefined);
+      if (saved) {
+        resyncOnError(
+          api.deleteConversation(id).then(() =>
+            toast.show({
+              tone: 'info',
+              title: 'Conversación eliminada',
+              description: `Se ha borrado «${title}» junto con todos sus mensajes.`,
+            }),
+          ),
+        );
+      }
     },
-    [store],
+    [store, isSaved, resyncOnError, toast],
   );
 
   const duplicateConversation = useCallback(
     (id: string) => {
-      const conv = store.conversations.find((c) => c.id === id);
-      if (!conv) return;
-      const now = new Date().toISOString();
-      persist({
-        ...conv,
-        id: uuid(),
-        title: `${conv.title} (copia)`,
-        created_at: now,
-        updated_at: now,
-        favorite: false,
-      });
+      if (!isSaved(id)) return;
+      resyncOnError(
+        api.duplicateConversation(id).then((copy) => {
+          store.upsertConversation(copy);
+          toast.show({
+            tone: 'exito',
+            title: 'Conversación duplicada',
+            description: `Se ha creado «${copy.title}» con todos sus mensajes.`,
+          });
+        }),
+      );
     },
-    [store.conversations, persist],
+    [store, isSaved, resyncOnError, toast],
   );
 
   const searchConversations = useCallback(
@@ -102,13 +138,15 @@ export function useConversations() {
       const q = query.toLowerCase().trim();
       return store.conversations.filter((c) => {
         if (filters.favoriteOnly && !c.favorite) return false;
-        if (filters.engine_version && c.engine_version !== filters.engine_version) return false;
+        // Un chat puede haber cambiado de versión: vale si en algún momento se preguntó por ella.
+        const versions = versionsUsed(c);
+        if (filters.engine_version && !versions.includes(filters.engine_version)) return false;
         if (filters.dateFrom && c.updated_at < filters.dateFrom) return false;
         if (filters.dateTo && c.updated_at > filters.dateTo) return false;
         if (!q) return true;
         return (
           c.title.toLowerCase().includes(q) ||
-          c.engine_version.toLowerCase().includes(q) ||
+          versions.some((v) => v.toLowerCase().includes(q)) ||
           c.messages.some((m) => m.content.toLowerCase().includes(q))
         );
       });

@@ -71,7 +71,12 @@ class Settings:
 
     # --- Rutas ---
     db_path: Path
+    app_db_path: Path
     manuals_dir: Path
+
+    # --- Usuarios y chats ---
+    session_ttl_hours: int
+    chat_history_limit: int
 
     # --- IA ---
     embedding_model: str
@@ -101,8 +106,14 @@ def load_settings() -> Settings:
         log_level=_get_str("LOG_LEVEL", "INFO").upper(),
         # DB_NAME es relativo a la raíz del repo (o ruta absoluta).
         db_path=_resolve(PROJECT_ROOT, _get_str("DB_NAME", "thermodrive_rag.db")),
+        # Usuarios, sesiones y chats. Es OTRA BD: la del RAG se borra cada vez que se regenera.
+        app_db_path=_resolve(PROJECT_ROOT, _get_str("APP_DB_NAME", "thermodrive_app.db")),
         # MANUALS_DIR es relativo a backend/db/ (o ruta absoluta).
         manuals_dir=_resolve(BACKEND_DIR / "db", _get_str("MANUALS_DIR", "manual_htm240")),
+        # Horas que dura una sesión iniciada (7 días por defecto).
+        session_ttl_hours=_get_int("SESSION_TTL_HOURS", 168),
+        # Mensajes previos de la conversación que se le pasan al RAG para entender preguntas de seguimiento.
+        chat_history_limit=_get_int("CHAT_HISTORY_LIMIT", 6),
         embedding_model=_get_str("EMBEDDING_MODEL", "paraphrase-multilingual-MiniLM-L12-v2"),
         groq_api_key=os.getenv("GROQ_API_KEY") or None,
         llm_model=_get_str("LLM_MODEL", "openai/gpt-oss-20b"),

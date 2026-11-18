@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { useAppStore } from '@/store/appStore';
 import { useChat } from '@/hooks/useChat';
 import { Message } from './Message';
@@ -8,11 +8,13 @@ import { WelcomeScreen } from './WelcomeScreen';
 import { ChatError } from './ChatError';
 import { isSelectionComplete } from '@/types/engine';
 import { ContextPanel } from '@/components/engine/ContextPanel';
+import { SelectionDivider } from './SelectionDivider';
+import { isFirstQuestion, startsNewSelection } from '@/utils/conversation';
 
 export function ChatWindow() {
   const { conversations, activeConversationId, engineSelection, engineSelectorOpen, setEngineSelectorOpen } = useAppStore();
-  // Única instancia de useChat: comparte loading/error con el input y el indicador.
-  const { loading, error, sendMessage, retry, cancel } = useChat();
+  // Única instancia de useChat: comparte la consulta en curso y el error con el input y el indicador.
+  const { busyConversationId, failure, sendMessage, retry, cancel } = useChat();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const conversation = useMemo(
@@ -20,6 +22,10 @@ export function ChatWindow() {
     [conversations, activeConversationId],
   );
   const messages = conversation?.messages;
+  // La consulta en curso y el error solo se muestran en la conversación a la que pertenecen.
+  const loading = busyConversationId !== null && busyConversationId === activeConversationId;
+  const busyElsewhere = busyConversationId !== null && !loading;
+  const error = failure && failure.conversationId === activeConversationId ? failure.message : null;
 
   useEffect(() => {
     const el = scrollRef.current;
@@ -48,6 +54,8 @@ export function ChatWindow() {
    * queda en espera (el texto del campo no se borra hasta que se envíe de verdad).
    */
   function submit(text: string, fromInput: boolean): boolean {
+    // Solo una consulta a la vez (el campo de texto ya lo indica; esto cubre las sugerencias).
+    if (busyConversationId !== null) return false;
     if (!ready) {
       pending.current = { text, fromInput };
       setEngineSelectorOpen(true, true);
@@ -66,8 +74,11 @@ export function ChatWindow() {
           <div className="max-w-3xl mx-auto px-4 py-6 space-y-4">
             {!hasMessages && !loading && <WelcomeScreen onSuggestion={(text) => submit(text, false)} />}
 
-            {messages?.map((msg) => (
-              <Message key={msg.id} message={msg} />
+            {messages?.map((msg, i) => (
+              <Fragment key={msg.id}>
+                {startsNewSelection(messages, i) && <SelectionDivider message={msg} first={isFirstQuestion(messages, i)} />}
+                <Message message={msg} />
+              </Fragment>
             ))}
 
             {loading && <ThinkingIndicator />}
@@ -75,7 +86,14 @@ export function ChatWindow() {
             {error && <ChatError message={error} onRetry={retry} />}
           </div>
         </div>
-        <MessageInput key={inputKey} ready={ready} loading={loading} onSend={(text) => submit(text, true)} onCancel={cancel} />
+        <MessageInput
+          key={inputKey}
+          ready={ready}
+          loading={loading}
+          blocked={busyElsewhere}
+          onSend={(text) => submit(text, true)}
+          onCancel={cancel}
+        />
       </div>
       <ContextPanel conversation={conversation} />
     </div>

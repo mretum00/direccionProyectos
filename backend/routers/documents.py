@@ -1,9 +1,12 @@
-"""Documentos técnicos. GET /api/documents lista los indexados; la subida (POST) sigue pendiente (501)."""
+"""Documentos técnicos indexados: la lista (GET /api/documents) y el PDF de cada uno.
 
-from fastapi import APIRouter, HTTPException, UploadFile
+Los documentos se añaden regenerando la BD del RAG (backend/db/database_generator.py), no desde la app.
+"""
+
+from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
-from models.schemas import DocumentsListResponse, TechnicalDocument
+from models.schemas import DocumentsListResponse
 from services.documentos import listar_documentos, ruta_pdf
 
 router = APIRouter(prefix="/api", tags=["documents"])
@@ -22,9 +25,3 @@ def get_document_file(filename: str):
     if ruta is None:
         raise HTTPException(status_code=404, detail="Documento no encontrado")
     return FileResponse(ruta, media_type="application/pdf", filename=ruta.name, content_disposition_type="inline")
-
-
-@router.post("/documents", response_model=TechnicalDocument)
-def upload_document(file: UploadFile):
-    """Subir un PDF para indexarlo."""
-    raise HTTPException(status_code=501, detail="Not implemented yet")

@@ -3,6 +3,7 @@
 // Los colores reales están en src/index.css (:root). Aquí solo se registran
 // para poder usarlos como clases: bg-fondo, text-texto-400, border-contraste/10...
 const color = (variable) => `rgb(var(${variable}) / <alpha-value>)`;
+const shades = (name, steps) => Object.fromEntries(steps.map((s) => [s, color(`--color-${name}-${s}`)]));
 
 export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
@@ -14,12 +15,12 @@ export default {
         tarjeta: color('--color-tarjeta'),
         elevado: color('--color-elevado'),
         contraste: color('--color-contraste'),
-        marca: {
-          300: color('--color-marca-300'),
-          400: color('--color-marca-400'),
-          500: color('--color-marca-500'),
-          600: color('--color-marca-600'),
-        },
+        marca: shades('marca', [300, 400, 500, 600]),
+        'sobre-marca': color('--color-sobre-marca'),
+        exito: shades('exito', [300, 400, 500]),
+        aviso: shades('aviso', [300, 400, 500]),
+        peligro: shades('peligro', [300, 400, 500]),
+        sombra: color('--color-sombra'),
         texto: {
           DEFAULT: color('--color-texto'),
           100: color('--color-texto-100'),
