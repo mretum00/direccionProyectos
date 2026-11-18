@@ -83,8 +83,15 @@ def chat(request: ChatRequest, user: User = Depends(usuario_actual)):
             raise error
 
     # Cada mensaje guarda la versión y el perfil con los que se preguntó: pueden cambiar dentro del chat.
-    seleccion = {"engine_version": request.engine_version, "profile": request.profile.value}
-    pregunta = NewMessage(id=question_id, role="user", content=request.message, created_at=ahora_iso(), **seleccion)
+    version, perfil = request.engine_version, request.profile.value
+    pregunta = NewMessage(
+        id=question_id,
+        role="user",
+        content=request.message,
+        created_at=ahora_iso(),
+        engine_version=version,
+        profile=perfil,
+    )
     historial = conversaciones.recent_history(user, conversation_id, settings.chat_history_limit)
 
     try:
@@ -106,7 +113,8 @@ def chat(request: ChatRequest, user: User = Depends(usuario_actual)):
         content=mensaje["content"],
         created_at=ahora_iso(),
         response=meta,
-        **seleccion,
+        engine_version=version,
+        profile=perfil,
     )
 
     try:
@@ -114,7 +122,7 @@ def chat(request: ChatRequest, user: User = Depends(usuario_actual)):
             if (error := _cancelada(user, question_id)) is not None:
                 raise error
             conversation = conversaciones.add_exchange(
-                user, conversation_id, request.engine_version, request.profile.value, pregunta, contestacion
+                user, conversation_id, version, perfil, pregunta, contestacion
             )
     except IntegrityError:
         # Un reintento de la misma pregunta llegó mientras esta seguía en curso y ya la guardó.

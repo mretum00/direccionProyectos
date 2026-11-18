@@ -19,6 +19,7 @@ from peewee import (
     ForeignKeyField,
     IntegerField,
     Model,
+    ModelSelect,
     SqliteDatabase,
     TextField,
 )
@@ -58,9 +59,14 @@ class RagChunk(Model):
 # formato que usa el frontend: así se pueden ordenar y comparar como cadenas.
 
 
+class _AppMeta:
+    # Fuera de AppModel porque Peewee borra el `Meta` de cada modelo al crearlo, y las subclases
+    # heredan de esta para que el editor no marque como error que cada modelo redefina su Meta.
+    database = app_db
+
+
 class AppModel(Model):
-    class Meta:
-        database = app_db
+    Meta = _AppMeta
 
 
 class User(AppModel):
@@ -76,7 +82,7 @@ class User(AppModel):
     token_hash = TextField(null=True, unique=True)
     token_expires = TextField(null=True)
 
-    class Meta:
+    class Meta(_AppMeta):
         table_name = "users"
 
 
@@ -89,8 +95,10 @@ class Conversation(AppModel):
     profile = TextField(default="")               # mechanic | user
     created_at = TextField()
     updated_at = TextField(index=True)
+    # Lo crea `backref="messages"` de Message.conversation; la anotación es solo para el editor.
+    messages: "ModelSelect[Message]"
 
-    class Meta:
+    class Meta(_AppMeta):
         table_name = "conversations"
 
 
@@ -107,7 +115,7 @@ class Message(AppModel):
     response = TextField(null=True)               # JSON con evidencia y fuentes (solo mensajes del asistente)
     created_at = TextField()
 
-    class Meta:
+    class Meta(_AppMeta):
         table_name = "messages"
 
 

@@ -1,10 +1,14 @@
 # Python 3.10 o superior
+# Instalar con: pip install -r requirements.txt
 fastapi>=0.100.0
 uvicorn>=0.23.0
 pydantic>=2.0.0
 numpy
-PyMuPDF
+# `import pymupdf` (en vez de `import fitz`) necesita PyMuPDF 1.24.3 o superior
+PyMuPDF>=1.24.3
+# Instala también torch (PyTorch), que la usa por debajo
 sentence-transformers>=3.0.0
-python-dotenv
-peewee>=3.17.0
+python-dotenv>=1.0.0
+# Peewee 4 trae sus propios tipos (peewee-stubs): sin ellos el editor marca errores falsos en los modelos
+peewee>=4.5.0
 groq>=0.30.0
