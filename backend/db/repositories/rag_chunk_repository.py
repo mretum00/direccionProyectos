@@ -34,6 +34,12 @@ class RagChunkRepository:
         with rag_db.connection_context():
             return list(RagChunk.select())
 
+    def list_summaries(self) -> list[tuple[str, str | None, int | None]]:
+        """(chunk_id, applicable_versions, page) de todos los fragmentos, sin el texto ni el embedding."""
+        with rag_db.connection_context():
+            query = RagChunk.select(RagChunk.chunk_id, RagChunk.applicable_versions, RagChunk.page).tuples()
+            return list(query)
+
     def count(self) -> int:
         with rag_db.connection_context():
             return RagChunk.select().count()

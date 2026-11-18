@@ -83,7 +83,7 @@ export function DocumentList({ documents, loading, endpointAvailable }: Document
                 <div className="flex items-center gap-2 text-[11px] text-texto-500 mt-0.5">
                   <span>{typeConfig.label}</span>
                   <span>· {doc.engine_version}</span>
-                  <span>· {doc.pages} pág.</span>
+                  {doc.pages > 0 && <span>· {doc.pages} pág.</span>}
                   <span>· {new Date(doc.uploaded_at).toLocaleDateString('es-ES')}</span>
                 </div>
               </div>
