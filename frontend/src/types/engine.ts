@@ -1,51 +1,27 @@
-import type { EngineSystem, Profile } from './chat';
-export type { EngineSystem, Profile };
+import type { Profile } from './chat';
 
-export interface EngineVersion {
-  label: string;
-  value: string;
-}
-
-export interface EngineOption {
-  name: string;
-  versions: EngineVersion[];
-}
-
-export const ENGINES: EngineOption[] = [
-  {
-    name: 'ThermoDrive HTM-240',
-    versions: [
-      { label: 'V1.0', value: 'V1.0' },
-      { label: 'V1.1', value: 'V1.1' },
-      { label: 'V2.0', value: 'V2.0' },
-    ],
-  },
-];
+/** Sistema sobre el que se consulta (hay uno solo). Las versiones las ofrece el backend: GET /api/versions. */
+export const ENGINE_NAME = 'ThermoDrive HTM-240';
 
 export const PROFILES: { label: string; value: Profile }[] = [
   { label: 'Mecánico', value: 'mechanic' },
-  { label: 'Conductor', value: 'user' },
+  { label: 'Usuario', value: 'user' },
 ];
 
-export interface VehicleInfo {
-  brand: string;
-  model: string;
-  year: number | null;
-  vin: string;
-}
-
+/** Versión y perfil empiezan vacíos: el usuario debe elegirlos antes de poder consultar. */
 export interface EngineSelection {
-  engine: string;
   engine_version: string;
-  system: EngineSystem;
-  /** Vacío hasta que el usuario lo elige, igual que la versión. */
   profile: Profile | '';
-  vehicle: VehicleInfo;
 }
 
-/** Selección con lo obligatorio ya elegido (versión y perfil): la única que permite enviar. */
-export type CompleteSelection = EngineSelection & { engine_version: string; profile: Profile };
+/** Nombres de los datos que aún faltan por elegir (vacío si la selección está completa). */
+export function missingSelection(selection: EngineSelection): string[] {
+  return [
+    !selection.engine_version && 'versión del motor',
+    !selection.profile && 'tipo de usuario',
+  ].filter((item): item is string => !!item);
+}
 
-export function isComplete(selection: EngineSelection): selection is CompleteSelection {
-  return !!selection.engine_version && !!selection.profile;
+export function isSelectionComplete(selection: EngineSelection): selection is EngineSelection & { profile: Profile } {
+  return Boolean(selection.engine_version && selection.profile);
 }

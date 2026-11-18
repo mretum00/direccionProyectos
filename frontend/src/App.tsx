@@ -1,36 +1,49 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { config } from '@/config';
+import { api } from '@/services/api';
 import { conversationRepository } from '@/services/conversationRepository';
 import type { Conversation } from '@/types/conversation';
-import { ENGINES, type EngineSelection } from '@/types/engine';
+import type { EngineSelection } from '@/types/engine';
 import { sortByUpdated } from '@/utils/conversation';
 import { AppStoreContext, type AppStore } from '@/store/appStore';
-import { ChatPage } from '@/pages/ChatPage';
+import { ChatWindow } from '@/components/chat/ChatWindow';
 import { DocumentsPage } from '@/pages/DocumentsPage';
+import { SettingsPage } from '@/pages/SettingsPage';
 import { Header } from '@/components/ui/Header';
 import { Sidebar } from '@/components/conversations/ConversationSidebar';
 
-/** Motor inicial (VITE_DEFAULT_ENGINE, validado contra ENGINES). La versión y el perfil siempre empiezan vacíos: hay que elegirlos. */
-function buildDefaultSelection(): EngineSelection {
-  const engine = ENGINES.find((e) => e.name === config.defaultEngine) ?? ENGINES[0];
-  return {
-    engine: engine.name,
-    engine_version: '',
-    system: null,
-    profile: '',
-    vehicle: { brand: '', model: '', year: null, vin: '' },
-  };
-}
-
-export type Page = 'chat' | 'documents';
+export type Page = 'chat' | 'documents' | 'settings';
 
 export default function App() {
+  const [versions, setVersions] = useState<string[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [engineSelection, setEngineSelection] = useState<EngineSelection>(buildDefaultSelection);
-  const [selectionRequest, setSelectionRequest] = useState(0);
+  const [engineSelection, setEngineSelection] = useState<EngineSelection>({ engine_version: '', profile: '' });
+  const [engineSelectorOpen, setSelectorOpen] = useState(false);
+  const [engineSelectorPrompted, setSelectorPrompted] = useState(false);
   const [page, setPage] = useState<Page>('chat');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Versiones que admite el backend. Si el .env define una (VITE_DEFAULT_ENGINE_VERSION) y el backend la admite,
+  // queda preseleccionada al abrir la app.
+  useEffect(() => {
+    let active = true;
+    api
+      .listVersions()
+      .then((list) => {
+        if (!active) return;
+        setVersions(list);
+        if (list.includes(config.defaultEngineVersion)) {
+          setEngineSelection((prev) =>
+            prev.engine_version ? prev : { ...prev, engine_version: config.defaultEngineVersion },
+          );
+        }
+      })
+      .catch(() => undefined);
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Carga única de las conversaciones guardadas (antes se repetía en cada ítem de la lista).
   useEffect(() => {
@@ -50,7 +63,10 @@ export default function App() {
     };
   }, []);
 
-  const requestSelection = useCallback(() => setSelectionRequest((n) => n + 1), []);
+  const setEngineSelectorOpen = useCallback((open: boolean, prompted = false) => {
+    setSelectorOpen(open);
+    setSelectorPrompted(open && prompted);
+  }, []);
 
   const upsertConversation = useCallback((c: Conversation) => {
     setConversations((prev) => sortByUpdated([c, ...prev.filter((x) => x.id !== c.id)]));
@@ -64,18 +80,19 @@ export default function App() {
   // forzaba el re-render de todos los consumidores (abrir el menú móvil, cambiar de página...).
   const store: AppStore = useMemo(
     () => ({
+      versions,
       conversations,
       activeConversationId,
       engineSelection,
-      selectionRequest,
-      setConversations,
+      engineSelectorOpen,
+      engineSelectorPrompted,
       setActiveConversationId,
       setEngineSelection,
-      requestSelection,
+      setEngineSelectorOpen,
       upsertConversation,
       deleteConversation,
     }),
-    [conversations, activeConversationId, engineSelection, selectionRequest, requestSelection, upsertConversation, deleteConversation],
+    [versions, conversations, activeConversationId, engineSelection, engineSelectorOpen, engineSelectorPrompted, setEngineSelectorOpen, upsertConversation, deleteConversation],
   );
 
   return (
@@ -104,8 +121,9 @@ export default function App() {
             onMenuClick={() => setSidebarOpen(true)}
           />
           <div className="flex-1 overflow-hidden">
-            {page === 'chat' && <ChatPage />}
+            {page === 'chat' && <ChatWindow />}
             {page === 'documents' && <DocumentsPage />}
+            {page === 'settings' && <SettingsPage />}
           </div>
         </div>
       </div>

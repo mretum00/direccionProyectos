@@ -1,14 +1,11 @@
-// El logo es de la empresa y se muestra sin modificar: la tarjeta clara
-// garantiza el contraste del texto azul marino sobre el tema oscuro.
 export function Logo() {
   return (
-    <div className="flex items-center min-w-0">
-      <div className="rounded-lg bg-white px-2.5 py-1.5 ring-1 ring-contraste/10 shadow-sm shadow-black/10">
-        <img
-          src="/assets/arsoft-logo.webp"
-          alt="ARSOFT"
-          className="h-6 w-auto object-contain"
-        />
+    <div className="flex items-center gap-3">
+      <img src="/logo-arsoft.png" alt="ARSOFT" className="h-9 w-auto flex-shrink-0" />
+      <div className="h-7 w-px bg-contraste/10" aria-hidden="true" />
+      <div className="leading-tight">
+        <div className="text-sm font-bold tracking-wider text-marca-400">AI</div>
+        <div className="text-[11px] text-texto-400 tracking-wide">Technical Vehicle Assistant</div>
       </div>
     </div>
   );

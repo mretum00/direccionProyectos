@@ -1,10 +1,6 @@
-export type Role = 'user' | 'assistant';
+type Role = 'user' | 'assistant';
 
-export type EvidenceStatus = 'high' | 'medium' | 'insufficient';
-
-export type Criticality = 'low' | 'medium' | 'high' | 'critical';
-
-export type SafetyLevel = 'warning' | 'critical';
+type EvidenceStatus = 'high' | 'medium' | 'insufficient';
 
 export type SourceType =
   | 'manual'
@@ -14,8 +10,6 @@ export type SourceType =
   | 'safety_manual'
   | 'glossary';
 
-export type EngineSystem = 'CIR-01' | 'CIR-02' | 'CIR-03' | null;
-
 export type Profile = 'mechanic' | 'user';
 
 export interface ChatMessage {
@@ -23,49 +17,15 @@ export interface ChatMessage {
   role: Role;
   content: string;
   created_at?: string;
-  response?: AssistantResponse;
+  /** Solo en los mensajes del asistente: evidencia, fuentes... (el texto ya va en `content`). */
+  response?: AnswerMeta;
 }
 
 export interface ChatRequest {
-  conversation_id: string;
   message: string;
-  engine: string;
   engine_version: string;
-  system?: EngineSystem;
   profile: Profile;
   history: { role: Role; content: string }[];
-  vehicle?: {
-    brand?: string;
-    model?: string;
-    year?: number | null;
-    vin?: string;
-  };
-}
-
-export interface SafetyItem {
-  level: SafetyLevel;
-  text: string;
-}
-
-export interface InterpretedQuery {
-  original: string;
-  technical_terms: string[];
-}
-
-export interface DetectedDTC {
-  code: string;
-  description: string;
-}
-
-export interface ResponseSections {
-  diagnosis?: string;
-  possible_causes?: string[];
-  criticality?: Criticality;
-  safety?: SafetyItem[];
-  ppe?: string[];
-  checks?: string[];
-  decision_tree_id?: string;
-  procedure?: string;
 }
 
 export interface Source {
@@ -74,27 +34,18 @@ export interface Source {
   source_type: SourceType;
   section?: string;
   page?: number;
-  engine?: string;
   engine_version?: string;
-  system?: string;
   excerpt?: string;
-  url?: string;
 }
 
-export interface DiscardedSource {
-  document: string;
-  reason: 'obsolete_version' | 'version_mismatch';
-  detail?: string;
-}
-
+/** Respuesta de POST /api/chat. */
 export interface AssistantResponse {
-  message: { id: string; role: 'assistant'; content: string };
+  message: { id: string; content: string };
   evidence_status?: EvidenceStatus;
-  confidence?: number;
+  needs_clarification?: boolean;
   documents_consulted?: number;
-  interpreted_query?: InterpretedQuery;
-  detected_dtc?: DetectedDTC[];
-  sections?: ResponseSections;
   sources?: Source[];
-  discarded_sources?: DiscardedSource[];
 }
+
+/** La respuesta sin el texto: es lo que se guarda en cada mensaje, para no duplicar el contenido. */
+export type AnswerMeta = Omit<AssistantResponse, 'message'>;
