@@ -41,6 +41,11 @@ export const api = {
     return data.documents;
   },
 
+  /** URL del PDF de un documento (GET /api/documents/{id}/file): se usa como enlace, no hace fetch. */
+  documentFileUrl(id: string): string {
+    return `${config.apiUrl}/api/documents/${encodeURIComponent(id)}/file`;
+  },
+
   /** POST /api/documents (subida de un PDF) */
   uploadDocument(file: File): Promise<TechnicalDocument> {
     const formData = new FormData();

@@ -15,6 +15,7 @@ los fragmentos por archivo (igual que hace `documento_de` al citar fuentes).
 import json
 import re
 from datetime import datetime, timezone
+from pathlib import Path
 
 from config import ENGINE_VERSIONS, settings
 from db.repositories import RagChunkRepository
@@ -63,3 +64,14 @@ def listar_documentos() -> list[dict]:
     """Documentos indexados en la BD, ordenados por nombre."""
     subido_en = datetime.fromtimestamp(settings.db_path.stat().st_mtime, tz=timezone.utc).isoformat()
     return agrupar_documentos(repositorio.list_summaries(), subido_en)
+
+def ruta_pdf(nombre: str) -> Path | None:
+    """Ruta del PDF con ese nombre dentro de la carpeta de manuales, o None si no existe.
+
+    Se busca entre los PDF que hay en disco en vez de construir la ruta con el texto recibido:
+    así nadie puede pedir "../../.env" y salirse de la carpeta de manuales.
+    """
+    for ruta in settings.manuals_dir.rglob("*.pdf"):
+        if ruta.name == nombre:
+            return ruta
+    return None

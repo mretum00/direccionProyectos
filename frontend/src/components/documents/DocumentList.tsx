@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Loader2, Upload, AlertCircle } from 'lucide-react';
+import { Loader2, Upload, AlertCircle, ExternalLink  } from 'lucide-react';
 import type { TechnicalDocument, DocumentStatus } from '@/types/document';
 import { api } from '@/services/api';
 import { config } from '@/config';
@@ -74,7 +74,14 @@ export function DocumentList({ documents, loading, endpointAvailable }: Document
           const statusConfig = STATUS_CONFIG[doc.status] ?? STATUS_CONFIG.pending;
           const Icon = typeConfig.icon;
           return (
-            <div key={doc.id} className="flex items-center gap-3 p-3 rounded-lg bg-tarjeta border border-contraste/5 hover:border-contraste/10 transition-colors">
+            <a
+              key={doc.id}
+              href={api.documentFileUrl(doc.id)}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Abrir PDF"
+              className="flex items-center gap-3 p-3 rounded-lg bg-tarjeta border border-contraste/5 hover:border-marca-500/40 transition-colors cursor-pointer"
+            >
               <div className="w-9 h-9 rounded-md bg-contraste/5 flex items-center justify-center flex-shrink-0">
                 <Icon className="w-4 h-4 text-texto-400" />
               </div>
@@ -90,7 +97,8 @@ export function DocumentList({ documents, loading, endpointAvailable }: Document
               <span className={`text-[11px] px-2 py-0.5 rounded ${statusConfig.color} flex-shrink-0`}>
                 {statusConfig.label}
               </span>
-            </div>
+              <ExternalLink className="w-4 h-4 text-texto-500 flex-shrink-0" />
+            </a>
           );
         })}
       </div>
