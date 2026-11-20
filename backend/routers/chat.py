@@ -15,6 +15,7 @@ borra; si aún se está respondiendo, se marca para que no se guarde al terminar
 
 import logging
 import threading
+from time import perf_counter
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -25,7 +26,7 @@ from db.fechas import ahora_iso
 from db.models import User
 from db.repositories import ConversationRepository, NewMessage
 from models.schemas import ChatRequest, ChatResponse
-from services import rag_pipeline
+from services import rag_pipeline, registro
 from services.auth import usuario_actual
 
 logger = logging.getLogger("ThermoDriveRAG")
@@ -63,6 +64,25 @@ def _respuesta_guardada(user: User, conversation_id: str, question_id: str) -> d
     }
 
 
+def _registrar_sin_interrumpir(request, respuesta: dict, segundos: float, user: User,
+                               conversation_id: str, question_id: str, *,
+                               estado: str, error: str | None = None) -> None:
+    """El registro es complementario: un fallo al escribirlo no debe tumbar el chat."""
+    try:
+        registro.registrar_consulta(
+            request,
+            respuesta,
+            segundos,
+            user_id=user.id,
+            conversation_id=conversation_id,
+            message_id=question_id,
+            estado=estado,
+            error=error,
+        )
+    except Exception:
+        logger.exception("No se pudo registrar la consulta en backend/logs/consultas.jsonl")
+
+
 # `def` (no `async def`) a propósito: FastAPI lo ejecuta en un hilo aparte y las
 # llamadas lentas (embeddings, SQLite, Groq) no bloquean al resto de peticiones.
 @router.post("/chat", response_model=ChatResponse, response_model_exclude_none=True)
@@ -94,6 +114,7 @@ def chat(request: ChatRequest, user: User = Depends(usuario_actual)):
     )
     historial = conversaciones.recent_history(user, conversation_id, settings.chat_history_limit)
 
+    inicio = perf_counter()
     try:
         respuesta = rag_pipeline.armar_respuesta(
             request.message,
@@ -102,7 +123,12 @@ def chat(request: ChatRequest, user: User = Depends(usuario_actual)):
             historial,
         )
     except Exception as exc:
+        segundos = perf_counter() - inicio
         logger.exception("Error en el pipeline RAG")
+        _registrar_sin_interrumpir(
+            request, {}, segundos, user, conversation_id, question_id,
+            estado="error", error=type(exc).__name__,
+        )
         raise HTTPException(status_code=500, detail="Error interno al procesar la consulta") from exc
 
     mensaje = respuesta["message"]
@@ -124,12 +150,35 @@ def chat(request: ChatRequest, user: User = Depends(usuario_actual)):
             conversation = conversaciones.add_exchange(
                 user, conversation_id, version, perfil, pregunta, contestacion
             )
-    except IntegrityError:
-        # Un reintento de la misma pregunta llegó mientras esta seguía en curso y ya la guardó.
+    except IntegrityError as exc:
+        # Un reintento concurrente puede haber guardado la misma pregunta mientras esta seguía
+        # en curso. En ese caso recuperamos la respuesta y no generamos un segundo registro.
         guardada = _respuesta_guardada(user, conversation_id, question_id)
-        if guardada is None:
-            raise
-        return guardada
+        if guardada is not None:
+            return guardada
+        logger.exception("Conflicto al guardar el intercambio de conversación")
+        _registrar_sin_interrumpir(
+            request, respuesta, perf_counter() - inicio, user, conversation_id, question_id,
+            estado="error_persistencia", error=type(exc).__name__,
+        )
+        raise HTTPException(status_code=500, detail="No se pudo guardar la conversación") from exc
+    except HTTPException:
+        # En particular, una cancelación conserva su HTTP 409 y no se registra como fallo técnico.
+        raise
+    except Exception as exc:
+        logger.exception("Error al guardar el intercambio de conversación")
+        _registrar_sin_interrumpir(
+            request, respuesta, perf_counter() - inicio, user, conversation_id, question_id,
+            estado="error_persistencia", error=type(exc).__name__,
+        )
+        raise HTTPException(status_code=500, detail="No se pudo guardar la conversación") from exc
+
+    # Se registra una sola vez, después de guardar el intercambio. Los reintentos devuelven
+    # la respuesta existente y no generan una segunda entrada de auditoría.
+    _registrar_sin_interrumpir(
+        request, respuesta, perf_counter() - inicio, user, conversation_id, question_id,
+        estado="completada",
+    )
     return {**respuesta, "conversation": conversation}
 
 
