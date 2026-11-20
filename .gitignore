@@ -31,3 +31,6 @@ venv/
 
 # BD de usuarios y chats: se crea sola al arrancar el backend y tiene datos personales
 thermodrive_app.db*
+
+# Registros de auditoría y consultas
+backend/logs/
