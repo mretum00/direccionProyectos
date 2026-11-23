@@ -10,7 +10,7 @@ Lo que devuelve la API al frontend.
 - respuesta_sin_evidencia: respuesta fija cuando no hay documentación que
   respalde una respuesta. No llama al LLM.
 - pedir_aclaracion: pide al usuario que elija la versión del motor cuando falta
-  o no existe. No llama al LLM.
+  o no existe. No llama al LLM. Solo pide la versión: el perfil siempre llega.
 """
 
 import re
@@ -282,8 +282,7 @@ def pedir_aclaracion(version_recibida: str) -> dict:
     else:
         texto = (
             "Antes de responderte necesito saber qué versión del motor tienes "
-            f"({opciones}) y qué tipo de usuario eres (Mecánico o Usuario). "
-            "Elígelos en el selector de motor."
+            f"({opciones}). Elígela en el selector de motor."
         )
 
     return {

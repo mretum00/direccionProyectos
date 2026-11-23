@@ -41,6 +41,7 @@ Modelos del contrato de la API: models/schemas.py (ChatResponse, Source, ...).
 """
 
 import uuid
+from datetime import datetime
 from typing import Optional
 
 from config import ENGINE_VERSIONS, settings
@@ -78,6 +79,9 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
     `historial` son los últimos mensajes del chat ([{"role", "content"}, ...]),
     tal como llegan del frontend.
     """
+    # Momento en que se hace la consulta (se muestra en el paso de transformación).
+    fecha_consulta = datetime.now().astimezone()
+
     # 1. Validar mensaje y versión.
     mensaje_limpio, version_canonica = validar_consulta(mensaje, version)
 
@@ -91,7 +95,9 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
     consulta_tecnica = traducir_consulta(pregunta_autonoma)
 
     # Pasos seguidos para llegar a la respuesta (campo `steps`, ver services/pasos.py).
-    pasos = [paso_transformacion(version_canonica, perfil, mensaje_limpio, pregunta_autonoma, consulta_tecnica)]
+    pasos = [paso_transformacion(
+        version_canonica, perfil, mensaje_limpio, pregunta_autonoma, consulta_tecnica, fecha_consulta,
+    )]
 
     # 3. Buscar los fragmentos más relevantes de esa versión.
     fragmentos = buscar_fragmentos(

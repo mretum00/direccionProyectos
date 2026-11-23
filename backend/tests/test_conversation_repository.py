@@ -70,3 +70,5 @@ def test_historial_reciente_se_devuelve_en_orden_cronologico(base_datos_temporal
     assert [mensaje["content"] for mensaje in historial] == [
         "Primera respuesta", "Segunda pregunta", "Segunda respuesta",
     ]
+    # Cada mensaje lleva la versión con la que se hizo: puede cambiar dentro del chat.
+    assert {mensaje["engine_version"] for mensaje in historial} == {"V1.0"}

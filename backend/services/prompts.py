@@ -27,12 +27,15 @@ def formatear_historial(historial: list[dict], max_chars: int = 500) -> str:
     """Convierte el historial en texto para meterlo en un prompt.
 
     Las respuestas del asistente son largas (6 secciones), así que se recortan
-    para no inflar el prompt.
+    para no inflar el prompt. Si el mensaje trae la versión con la que se hizo,
+    se indica ("Usuario [V1.0]: ..."): puede haber cambiado dentro del chat.
     """
     lineas = []
     for h in historial:
         # Cada mensaje del frontend trae "role" ("user" o "assistant") y "content".
         quien = "Usuario" if h["role"] == "user" else "Asistente"
+        if h.get("engine_version"):
+            quien += f" [{h['engine_version']}]"
         texto = h["content"].strip()
         # Recorte: evita que una respuesta larga del asistente ocupe medio prompt.
         if len(texto) > max_chars:
@@ -121,7 +124,8 @@ def construir_prompt(
     #    comillas: se enviarían al LLM):
     #      - perfil del usuario y versión elegida en la interfaz
     #      - historial reciente (si lo hay)
-    #      - reglas críticas: fidelidad a los documentos, versiones y datos obsoletos,
+    #      - reglas críticas: fidelidad a los documentos, datos obsoletos, versión del
+    #        vehículo (la elegida en la interfaz, sin volver a pedirla),
     #        componentes ambiguos, seguridad y fuera de alcance
     #      - estructura de la respuesta (### RESUMEN y secciones en Markdown)
     #      - cierre obligatorio: pasos seguidos y fragmentos utilizados (F1, F2...)
@@ -136,10 +140,14 @@ VERSIÓN SELECCIONADA EN LA INTERFAZ: {version_seleccionada}
 REGLAS CRÍTICAS DE PRECISIÓN, VERSIONES Y OBSOLESCENCIA (OBLIGATORIAS):
 1. FIDELIDAD Y CERO CÓDIGOS INVENTADOS: Responde SOLO con los datos del CONTEXTO DOCUMENTAL. Está TERMINANTEMENTE PROHIBIDO inventar datos, pares de apriete, resistencias o escribir referencias ficticias con signos de interrogación como "HTM240-PRC-??". Cita siempre el código real del documento, sección y página (ej. HTM240-CAT-001, HTM240-DIA-001, HTM240-BOL-006). Si no hay datos para responder, incluye exactamente la frase "No hay evidencia suficiente en la documentación".
 2. DATOS OBSOLETOS Y JERARQUÍA DOCUMENTAL (Boletín > Manual vigente > Manual obsoleto):
-   - Da siempre como respuesta principal el dato VIGENTE indicando en qué documento y versión se aplica.
-   - ADICIONALMENTE, si en el contexto aparece un valor anterior u obsoleto o un boletín que corrige un documento (ej. HTM240-BOL-006 corrige los 80.000 km / 60 meses de HTM240-MNT-001 v1.0 a 60.000 km / 48 meses en v1.1; o HTM240-BOL-002 actualiza PRC-003 a v2.0), DEBES MENCIONAR EXPRESAMENTE qué dato está obsoleto, a qué versión antigua pertenecía y qué boletín/versión contiene el dato correcto vigente.
-3. LECTURA MULTIVERSIÓN (V1.0, V1.1 y V2.0):
-   - Aunque en la interfaz figure seleccionada la versión {version_seleccionada}, si el usuario NO especifica la versión en el texto de su pregunta y el dato o código consultado varía entre versiones (ej. corriente nominal de la bomba CMP-02: 3-5 A en V1.0 vs. 3-6 A en V1.1/V2.0 según HTM240-BOL-002; o el código HTM-0142: precalentamiento no completado en V1.x vs. fallo del sensor combinado CMP-18 en V2.0 según HTM240-BOL-003; o potencia del PTC CMP-12 en BOL-007), EXPÓN LOS DATOS DE TODAS LAS VERSIONES indicando cuál corresponde a cada una y pide confirmar la versión real del vehículo antes de sustituir piezas.
+   - Da siempre como respuesta principal el dato VIGENTE indicando en qué documento y edición se aplica.
+   - ADICIONALMENTE, si en el contexto aparece un valor anterior u obsoleto o un boletín que corrige un documento (ej. HTM240-BOL-006 corrige los 80.000 km / 60 meses de HTM240-MNT-001 v1.0 a 60.000 km / 48 meses en v1.1; o HTM240-BOL-002 actualiza PRC-003 a v2.0), DEBES MENCIONAR EXPRESAMENTE qué dato está obsoleto, a qué edición antigua del documento pertenecía y qué boletín/edición contiene el dato correcto vigente.
+3. VERSIÓN DEL VEHÍCULO (V1.0, V1.1 y V2.0):
+   - La versión del vehículo del usuario es la SELECCIONADA EN LA INTERFAZ: {version_seleccionada}. Ya la conoces: NUNCA pidas al usuario que confirme o indique su versión. Si dice "mi versión", "mi vehículo" o no menciona ninguna, se refiere a {version_seleccionada}.
+   - Responde directamente con el dato que aplica a {version_seleccionada} (ej. corriente nominal de la bomba CMP-02: 3-5 A en V1.0 vs. 3-6 A en V1.1/V2.0 según HTM240-BOL-002; código HTM-0142: precalentamiento no completado en V1.x vs. fallo del sensor combinado CMP-18 en V2.0 según HTM240-BOL-003). El contexto documental ya está filtrado: solo contiene documentos aplicables a {version_seleccionada}.
+   - NO confundas la edición de un documento con la versión del vehículo: "HTM240-MNT-001 v1.0" o "v1.1" son ediciones del manual, no las versiones V1.0/V1.1 del vehículo. El dato vigente de un documento (su última edición o el boletín que lo corrige) es el que aplica, salvo que el propio documento lo limite a otras versiones del vehículo.
+   - En el HISTORIAL cada mensaje indica entre corchetes la versión con la que se hizo. Si es distinta de {version_seleccionada}, el usuario ha cambiado de versión: NO reutilices los datos de esas respuestas, responde solo con el CONTEXTO DOCUMENTAL actual. Si en el historial el asistente pidió confirmar la versión, ignóralo: la versión es {version_seleccionada}.
+   - Solo si el usuario pregunta expresamente por otra versión del vehículo distinta de {version_seleccionada}, indica que la respuesta se basa en la documentación de {version_seleccionada} y que cambie la versión seleccionada en la interfaz para consultar la otra.
 4. AMBIGÜEDAD DE COMPONENTES (PROHIBIDO ASUMIR):
    - Si preguntan por "la bomba" sin especificar cuál, NO asumas CMP-02: pide aclaración indicando que existen tres bombas: CMP-01 (mecánica, CIR-01 motor), CMP-02 (eléctrica auxiliar A, CIR-02 batería) y CMP-03 (eléctrica auxiliar B, CIR-03 electrónica de potencia).
    - Si preguntan por "el radiador" sin especificar cuál, pide aclaración indicando que existen dos radiadores: CMP-05 (radiador principal, CIR-01) y CMP-06 (radiador auxiliar de baja temperatura, CIR-02/CIR-03).
@@ -169,7 +177,7 @@ CIERRE OBLIGATORIO (siempre, después de todo lo anterior, con estos dos encabez
   · nombra el dato concreto que has tomado o comprobado (código DTC, testigo, componente, valor numérico con su unidad, umbral, intervalo, versión, nivel de criticidad o habilitación);
   · indica de qué fragmento sale ÚNICAMENTE con su referencia entre paréntesis al final de la frase (ej. "(F2)" o "(F1, F3)"); no escribas nombres de fichero ni códigos de documento en los pasos, la referencia basta;
   · si has elegido un dato frente a otro (vigente frente a obsoleto, una versión frente a otra, seguridad primero), di cuál, frente a cuál y por qué;
-  · si has descartado algún fragmento recuperado por no ser relevante o no aplicar a la versión, añade un paso diciendo cuál y por qué.
+  · si has descartado algún fragmento recuperado por no ser relevante para la pregunta, añade un paso diciendo cuál y por qué (todos aplican a la versión {version_seleccionada}: no los descartes por la versión).
   Forma de un paso válido (rellénalo con datos reales del contexto, no copies los marcadores): "El testigo TES-XX aparece asociado al código HTM-XXXX (condición y valor que lo activa), con criticidad <nivel> (F2)."
   Ejemplo NO válido (demasiado genérico): "Consulté la documentación para ver las comprobaciones recomendadas."
   Describe solo lo que has hecho de verdad; no inventes pasos ni datos.

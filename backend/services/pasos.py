@@ -13,6 +13,7 @@ El frontend (components/chat/ReasoningSteps.tsx) los dibuja como una línea temp
 """
 
 import re
+from datetime import datetime
 
 from .respuestas import codigo_documento, extraer_referencias, normalizar_codigos, tipo_documento
 from .retrieval import documento_de
@@ -34,15 +35,25 @@ def _codigos(texto: str) -> list[str]:
     return list(dict.fromkeys(_CODIGO_TECNICO.findall(normalizar_codigos(texto))))
 
 
-def paso_transformacion(version: str, perfil: str, original: str, reformulada: str, consulta_tecnica: str) -> dict:
+def paso_transformacion(
+    version: str,
+    perfil: str,
+    original: str,
+    reformulada: str,
+    consulta_tecnica: str,
+    fecha: datetime | None = None,
+) -> dict:
     """Fase 1: cómo se ha transformado la pregunta original en la consulta que se busca.
 
     `stages` va de la pregunta tal como la escribió el usuario a la consulta técnica
     generada, pasando por la reformulación con el historial si la ha habido.
     traducir_consulta devuelve "pregunta (pregunta enriquecida)": solo se muestra la
     parte enriquecida, que es la que genera el LLM.
+    `detail` incluye siempre cuándo se ha hecho la consulta (`fecha`, por defecto ahora,
+    en la hora local del servidor).
     """
-    etapas = [{"label": "Pregunta original", "text": original}]
+    fecha = (fecha or datetime.now()).astimezone()
+    etapas: list[dict] = [{"label": "Pregunta original", "text": original}]
 
     if reformulada != original:
         etapas.append({
@@ -78,7 +89,10 @@ def paso_transformacion(version: str, perfil: str, original: str, reformulada: s
     return {
         "kind": "query",
         "title": "Transformación de la consulta",
-        "detail": f"Versión {version} · Perfil {PERFILES.get(perfil, perfil).lower()}",
+        "detail": (
+            f"Versión {version} · Perfil {PERFILES.get(perfil, perfil).lower()}"
+            f" · Consulta realizada el {fecha:%d/%m/%Y} a las {fecha:%H:%M:%S}"
+        ),
         "stages": etapas,
     }
 

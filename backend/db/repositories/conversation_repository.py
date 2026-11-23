@@ -128,7 +128,11 @@ class ConversationRepository:
             return True
 
     def recent_history(self, user: User, conversation_id: str, limit: int) -> list[dict]:
-        """Últimos `limit` mensajes (role, content) en orden cronológico, sin los avisos de aclaración."""
+        """Últimos `limit` mensajes (role, content, engine_version) en orden cronológico, sin los avisos de aclaración.
+
+        La versión va con cada mensaje porque puede cambiar dentro del chat: el LLM no debe
+        reutilizar datos de una respuesta dada para otra versión.
+        """
         with app_db.connection_context():
             conversation = self._get(user, conversation_id)
             if conversation is None:
@@ -140,7 +144,7 @@ class ConversationRepository:
                 # Los avisos de "elige la versión" no le aportan nada al modelo.
                 if meta.get("needs_clarification"):
                     continue
-                history.append({"role": m.role, "content": m.content})
+                history.append({"role": m.role, "content": m.content, "engine_version": m.engine_version})
                 if len(history) == limit:
                     break
             return list(reversed(history))
