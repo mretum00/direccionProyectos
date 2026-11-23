@@ -7,9 +7,20 @@ Prompts: construcción del texto que se le manda al LLM.
   historial, los fragmentos recuperados y la pregunta en el prompt final.
 """
 
+import re
 from typing import Optional
 
 from .retrieval import documento_de
+
+# Secciones finales que el LLM debe añadir siempre. respuestas.py las separa del
+# texto: los pasos van al campo `steps` y los fragmentos filtran las fuentes.
+SECCION_PASOS = "PASOS SEGUIDOS"
+SECCION_FRAGMENTOS = "FRAGMENTOS UTILIZADOS"
+
+
+def referencia_fragmento(numero: int) -> str:
+    """Referencia corta de un fragmento en el prompt: 1 -> "F1"."""
+    return f"F{numero}"
 
 
 def formatear_historial(historial: list[dict], max_chars: int = 500) -> str:
@@ -46,8 +57,11 @@ def construir_prompt(
     # 1. Contexto documental: cada fragmento recuperado se convierte en un bloque
     #    de texto con una cabecera que lo identifica, para que el LLM pueda citarlo.
     #    Se usa .get con valor por defecto para que un fragmento incompleto no rompa el prompt.
+    #    Cada fragmento lleva una referencia corta (F1, F2...) que el LLM usa en
+    #    "### FRAGMENTOS UTILIZADOS" para indicar de cuáles ha sacado la información
+    #    (los chunk_id son largos y el modelo los copiaría mal).
     bloques_contexto = []
-    for f in fragmentos:
+    for numero, f in enumerate(fragmentos, start=1):
         chunk_id = f.get("chunk_id", "Desconocido")
         documento = documento_de(chunk_id)
         categoria = f.get("categoria", "Manual")
@@ -64,9 +78,16 @@ def construir_prompt(
             info_extra.append(f"Página: {pagina}")
         extra_str = " | " + " | ".join(info_extra) if info_extra else ""
 
-        # Cabecera entre corchetes (documento, fragmento, categoría, versiones...) y debajo el texto.
+        # Documento como "HTM240-DIA-001 (Manual diagnostico)" en vez del nombre del fichero:
+        # el chunk_id y el ".pdf" no se ponen para que el LLM no los copie al citar.
+        nombre = re.match(r"(HTM240-[A-Z]{3}-\d{3})_?(.*?)(?:\.pdf)?$", documento)
+        if nombre:
+            titulo = nombre.group(2).replace("_", " ").strip()
+            documento = f"{nombre.group(1)} ({titulo})" if titulo else nombre.group(1)
+
+        # Cabecera entre corchetes (referencia, documento, categoría, versiones...) y debajo el texto.
         bloques_contexto.append(
-            f"[Documento: {documento} | Fragmento: {chunk_id} | Categoría: {categoria} | Versiones aplicables: {versiones}{extra_str}]\n{texto}"
+            f"[{referencia_fragmento(numero)} | Documento: {documento} | Categoría: {categoria} | Versiones aplicables: {versiones}{extra_str}]\n{texto}"
         )
 
     # Los bloques se separan con una línea "---" para que el LLM vea dónde acaba cada fragmento.
@@ -103,6 +124,7 @@ def construir_prompt(
     #      - reglas críticas: fidelidad a los documentos, versiones y datos obsoletos,
     #        componentes ambiguos, seguridad y fuera de alcance
     #      - estructura de la respuesta (### RESUMEN y secciones en Markdown)
+    #      - cierre obligatorio: pasos seguidos y fragmentos utilizados (F1, F2...)
     #      - contexto documental recuperado y, al final, la pregunta del usuario
     prompt_final = f"""Eres el asistente técnico oficial del sistema de gestión térmica híbrida ThermoDrive HTM-240.
 
@@ -140,6 +162,19 @@ PROPORCIONALIDAD Y ESTRUCTURA DE SALIDA:
 - En consultas de diagnóstico, averías, testigos, códigos DTC o procedimientos, usa las secciones que tengan contenido real en el contexto documental.
 - En consultas directas simples (ej. preguntar solo qué función tiene un componente, qué herramienta usa un paso o cada cuántos km se cambia el fluido) o consultas fuera de alcance/ambiguas, usa `### RESUMEN` con la respuesta directa, completa y concisa, añade solo las secciones que realmente aporten (`### SEGURIDAD` si aplica) y cita la `### FUENTE`.
 - En ningún caso inventes pasos de desmontaje que nadie ha pedido ni rellenes secciones vacías con "No consta en la documentación recuperada": si una sección no tiene contenido, omítela.
+
+CIERRE OBLIGATORIO (siempre, después de todo lo anterior, con estos dos encabezados exactos):
+### {SECCION_PASOS}
+- Lista numerada (1., 2., 3....) de entre 3 y 6 pasos que expliquen cómo has llegado a la respuesta. Cada paso es UNA frase (máximo 30 palabras) y debe ser ESPECÍFICO:
+  · nombra el dato concreto que has tomado o comprobado (código DTC, testigo, componente, valor numérico con su unidad, umbral, intervalo, versión, nivel de criticidad o habilitación);
+  · indica de qué fragmento sale ÚNICAMENTE con su referencia entre paréntesis al final de la frase (ej. "(F2)" o "(F1, F3)"); no escribas nombres de fichero ni códigos de documento en los pasos, la referencia basta;
+  · si has elegido un dato frente a otro (vigente frente a obsoleto, una versión frente a otra, seguridad primero), di cuál, frente a cuál y por qué;
+  · si has descartado algún fragmento recuperado por no ser relevante o no aplicar a la versión, añade un paso diciendo cuál y por qué.
+  Forma de un paso válido (rellénalo con datos reales del contexto, no copies los marcadores): "El testigo TES-XX aparece asociado al código HTM-XXXX (condición y valor que lo activa), con criticidad <nivel> (F2)."
+  Ejemplo NO válido (demasiado genérico): "Consulté la documentación para ver las comprobaciones recomendadas."
+  Describe solo lo que has hecho de verdad; no inventes pasos ni datos.
+### {SECCION_FRAGMENTOS}
+- Una sola línea con las referencias (F1, F2...) de los fragmentos de los que has sacado información que aparece en la respuesta, separadas por comas (ej. "F1, F3"). No incluyas fragmentos recuperados que no hayas usado. Si no has usado ninguno, escribe "Ninguno".
 
 CONTEXTO DOCUMENTAL RECUPERADO:
 {contexto_unido}

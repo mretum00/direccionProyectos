@@ -77,13 +77,58 @@ class Source(BaseModel):
     excerpt: str | None = None
 
 
+class StepFragment(BaseModel):
+    """Un fragmento recuperado en la búsqueda, con su similitud y si se ha usado en la respuesta."""
+
+    document: str
+    source_type: SourceType
+    page: int | None = None
+    section: str | None = None
+    score: float
+    used: bool
+
+
+class StepPoint(BaseModel):
+    """Un paso del razonamiento del LLM y los fragmentos que cita ("HTM240-DIA-001 · pág. 1")."""
+
+    text: str
+    refs: list[str] | None = None
+
+
+class QueryStage(BaseModel):
+    """Una etapa de la transformación de la consulta (original, reformulada, técnica generada)."""
+
+    label: str
+    text: str
+    terms: list[str] | None = None  # códigos técnicos añadidos en esta etapa
+    note: str | None = None
+
+
+class ReasoningStep(BaseModel):
+    """Una fase de los pasos seguidos para llegar a la respuesta (ver services/pasos.py)."""
+
+    # "interpretation" solo aparece en respuestas guardadas antes de `stages`.
+    kind: Literal["query", "interpretation", "search", "analysis", "conclusion"]
+    title: str
+    detail: str | None = None
+    stages: list[QueryStage] | None = None      # query: de la pregunta original a la consulta técnica
+    terms: list[str] | None = None              # interpretation: códigos técnicos detectados
+    fragments: list[StepFragment] | None = None  # search: fragmentos recuperados
+    points: list[StepPoint] | None = None       # analysis: pasos del razonamiento del LLM
+    evidence: EvidenceStatus | None = None      # conclusion: nivel de evidencia
+
+
 class AnswerMeta(BaseModel):
     """La respuesta del asistente sin el texto: se guarda junto a cada mensaje del asistente."""
 
     evidence_status: EvidenceStatus | None = None
     needs_clarification: bool = False
     documents_consulted: int | None = None
+    # Solo las fuentes de las que el LLM ha sacado la información (no todos los fragmentos recuperados).
     sources: list[Source] | None = None
+    # Pasos seguidos para llegar a la respuesta, por fases. Las respuestas guardadas con la
+    # primera versión de esta función los tienen como texto plano: por eso se admite `str`.
+    steps: list[ReasoningStep | str] | None = None
 
 
 class ChatResponse(AnswerMeta):

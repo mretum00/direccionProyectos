@@ -46,13 +46,59 @@ export interface Source {
   excerpt?: string;
 }
 
+/** Fragmento recuperado en la búsqueda: similitud y si se ha usado en la respuesta. */
+export interface StepFragment {
+  document: string;
+  source_type: SourceType;
+  page?: number;
+  section?: string;
+  score: number;
+  used: boolean;
+}
+
+/** Un paso del razonamiento del modelo y los fragmentos que cita ("HTM240-DIA-001 · pág. 1"). */
+export interface StepPoint {
+  text: string;
+  refs?: string[];
+}
+
+/** Una etapa de la transformación de la consulta: original, reformulada o técnica generada. */
+export interface QueryStage {
+  label: string;
+  text: string;
+  /** Códigos técnicos que ha añadido esta etapa. */
+  terms?: string[];
+  note?: string;
+}
+
+/** Una fase de los pasos seguidos para llegar a la respuesta. */
+export interface ReasoningStep {
+  /** 'interpretation' solo aparece en respuestas guardadas antes de `stages`. */
+  kind: 'query' | 'interpretation' | 'search' | 'analysis' | 'conclusion';
+  title: string;
+  detail?: string;
+  /** query: de la pregunta original a la consulta técnica generada. */
+  stages?: QueryStage[];
+  /** interpretation: códigos técnicos detectados en la consulta. */
+  terms?: string[];
+  /** search: fragmentos recuperados. */
+  fragments?: StepFragment[];
+  /** analysis: pasos del razonamiento del modelo. */
+  points?: StepPoint[];
+  /** conclusion: nivel de evidencia. */
+  evidence?: EvidenceStatus;
+}
+
 /** Respuesta de POST /api/chat. */
 export interface AssistantResponse {
   message: { id: string; content: string };
   evidence_status?: EvidenceStatus;
   needs_clarification?: boolean;
   documents_consulted?: number;
+  /** Solo las fuentes de las que se ha sacado la información de la respuesta. */
   sources?: Source[];
+  /** Pasos seguidos para llegar a la respuesta, por fases (texto plano en respuestas antiguas). */
+  steps?: (ReasoningStep | string)[];
   /** La conversación ya guardada en el backend, con la pregunta y esta respuesta. */
   conversation: Conversation;
 }

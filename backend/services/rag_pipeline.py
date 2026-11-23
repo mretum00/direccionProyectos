@@ -14,6 +14,7 @@ Este fichero solo une las piezas; cada una vive en su propio módulo
   prompts.py     construir el prompt final
   llm.py         hablar con Groq y reescribir la consulta
   respuestas.py  fuentes y respuestas fijas (sin evidencia / aclaración)
+  pasos.py       pasos seguidos para llegar a la respuesta (campo `steps`)
 
 Funciones de este fichero:
   validar_consulta  limpia el mensaje y comprueba que la versión del motor exista.
@@ -28,6 +29,8 @@ Flujo de una consulta:
       -> buscar_fragmentos           busca los fragmentos más parecidos (usa cargar_fragmentos)
       -> construir_prompt            junta reglas + fragmentos + pregunta
       -> generar_respuesta           llama al LLM (Groq)
+      -> separar_cierre              saca del texto los pasos seguidos y los fragmentos usados
+      -> fragmentos_utilizados       se queda solo con los fragmentos de los que salió la respuesta
       -> construir_fuentes           prepara las fuentes para el frontend
       -> armar_respuesta             orquesta todo (usa respuesta_sin_evidencia / pedir_aclaracion)
 
@@ -43,8 +46,16 @@ from typing import Optional
 from config import ENGINE_VERSIONS, settings
 
 from .llm import generar_respuesta, reformular_con_historial, traducir_consulta
+from .pasos import paso_busqueda, paso_conclusion, paso_razonamiento, paso_transformacion
 from .prompts import construir_prompt
-from .respuestas import construir_fuentes, pedir_aclaracion, respuesta_sin_evidencia
+from .respuestas import (
+    citar_fragmentos,
+    construir_fuentes,
+    fragmentos_utilizados,
+    pedir_aclaracion,
+    respuesta_sin_evidencia,
+    separar_cierre,
+)
 from .retrieval import buscar_fragmentos
 
 
@@ -79,6 +90,9 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
     pregunta_autonoma = reformular_con_historial(mensaje_limpio, historial)
     consulta_tecnica = traducir_consulta(pregunta_autonoma)
 
+    # Pasos seguidos para llegar a la respuesta (campo `steps`, ver services/pasos.py).
+    pasos = [paso_transformacion(version_canonica, perfil, mensaje_limpio, pregunta_autonoma, consulta_tecnica)]
+
     # 3. Buscar los fragmentos más relevantes de esa versión.
     fragmentos = buscar_fragmentos(
         consulta_tecnica,
@@ -90,7 +104,13 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
     # Si ninguno se parece lo suficiente (o no hay), no se llama al LLM.
     mejor_score = fragmentos[0]["score"] if fragmentos else 0.0
     if mejor_score < settings.rag_evidence_min_score:
-        return respuesta_sin_evidencia()
+        pasos.append(paso_busqueda(version_canonica, fragmentos, None))
+        pasos.append(paso_conclusion(
+            "insufficient", mejor_score,
+            settings.rag_evidence_min_score, settings.rag_evidence_high_score,
+            llamo_al_modelo=False,
+        ))
+        return respuesta_sin_evidencia(pasos)
 
     # 5. Construir el prompt. Se usa el mensaje original del usuario, no la
     #    versión traducida (esa solo sirve para buscar).
@@ -102,8 +122,11 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
         version_canonica,
     )
 
-    # 6. Obtener la respuesta del LLM.
-    texto_respuesta = generar_respuesta(prompt_final)
+    # 6. Obtener la respuesta del LLM y separar su cierre: los pasos de su
+    #    razonamiento y los fragmentos que dice haber usado no van en el texto.
+    texto_respuesta, pasos_llm, numeros_usados = separar_cierre(generar_respuesta(prompt_final))
+    # Las referencias F1, F2... solo existen en el prompt: se cambian por el documento.
+    texto_respuesta = citar_fragmentos(texto_respuesta, fragmentos)
 
     # evidence_status: insuficiente si el propio LLM dice que no hay
     # evidencia; si no, alta o media según el mejor score.
@@ -114,12 +137,23 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
     else:
         evidencia = "medium"
 
-    # 7. Preparar las fuentes y contar los documentos distintos usados.
-    fuentes = construir_fuentes(fragmentos, version_canonica)
-
+    # 7. Preparar las fuentes solo con los fragmentos de los que el LLM ha sacado
+    #    la información (no los top_k recuperados) y contar sus documentos.
+    usados = fragmentos_utilizados(fragmentos, numeros_usados, texto_respuesta)
+    fuentes = construir_fuentes(usados, version_canonica)
     documentos = {fuente["document"] for fuente in fuentes}
 
+    pasos.append(paso_busqueda(version_canonica, fragmentos, usados))
+    if (razonamiento := paso_razonamiento(pasos_llm, fragmentos)) is not None:
+        pasos.append(razonamiento)
+    pasos.append(paso_conclusion(
+        evidencia, mejor_score,
+        settings.rag_evidence_min_score, settings.rag_evidence_high_score,
+        fuentes=len(fuentes), documentos=len(documentos),
+    ))
+
     return {
+        "steps": pasos,
         "message": {
             "id": str(uuid.uuid4()),
             "role": "assistant",

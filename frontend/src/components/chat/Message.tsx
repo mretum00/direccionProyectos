@@ -4,6 +4,7 @@ import { User, Bot, AlertTriangle, Settings2 } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import type { ChatMessage } from '@/types/chat';
 import { EvidencePanel } from '@/components/sources/EvidencePanel';
+import { ReasoningSteps } from './ReasoningSteps';
 import { parseAnswer, stripSourceReferences, type ParsedAnswer } from '@/utils/answer';
 
 // Estilos del markdown definidos como variantes de Tailwind sobre el contenedor:
@@ -112,6 +113,7 @@ function MessageComponent({ message }: MessageProps) {
 
   const sources = message.response?.sources;
   const hasSources = !!sources && sources.length > 0;
+  const steps = message.response?.steps;
   const answer = parseAnswer(hasSources ? stripSourceReferences(message.content) : message.content);
 
   return (
@@ -122,6 +124,14 @@ function MessageComponent({ message }: MessageProps) {
         </div>
 
         <div className="flex-1 min-w-0 space-y-3 pt-1">
+          {/* Cómo se ha llegado a la respuesta: va antes de ella, en el orden en que ocurre
+              (consulta → búsqueda → razonamiento → respuesta → fuentes). */}
+          {steps && steps.length > 0 && (
+            <div className="pb-3 border-b border-contraste/5">
+              <ReasoningSteps steps={steps} />
+            </div>
+          )}
+
           {answer.sections.length > 0 ? (
             <StructuredAnswer {...answer} />
           ) : (
