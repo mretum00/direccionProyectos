@@ -651,3 +651,65 @@ def test_r07_con_cobertura_completa_entrega_solo_los_fragmentos_con_cita_validad
     assert recibidos["ids"] == ["HTM240-CAT-001_1"]
     assert resultado["evidence_sufficiency"]["status"] == "sufficient"
     assert resultado["message"]["content"] == "Respuesta documentada"
+
+
+def test_pregunta_generica_como_reviso_la_bomba_pide_aclaracion_entre_tres_bombas(monkeypatch):
+    monkeypatch.setattr(
+        rag_pipeline,
+        "reformular_con_historial",
+        lambda *_: (_ for _ in ()).throw(AssertionError("No debe reformular una pregunta ambigua")),
+    )
+    monkeypatch.setattr(
+        rag_pipeline,
+        "buscar_fragmentos",
+        lambda *_: (_ for _ in ()).throw(AssertionError("No debe recuperar antes de aclarar")),
+    )
+    monkeypatch.setattr(
+        rag_pipeline,
+        "generar_respuesta",
+        lambda *_: (_ for _ in ()).throw(AssertionError("No debe llamar a Groq")),
+    )
+    monkeypatch.setattr(
+        rag_pipeline,
+        "settings",
+        SimpleNamespace(rag_ambiguity_detection_enabled=True),
+    )
+
+    resultado = rag_pipeline.armar_respuesta("¿Cómo reviso la bomba?", "V2.0", "mechanic", [])
+
+    assert resultado["needs_clarification"] is True
+    assert resultado["clarification_kind"] == "technical"
+    assert all(codigo in resultado["message"]["content"] for codigo in ("CMP-01", "CMP-02", "CMP-03"))
+    assert resultado["sources"] == []
+    assert resultado["documents_consulted"] == 0
+
+
+def test_pregunta_por_caudal_de_bomba_sin_identificar_pide_aclaracion(monkeypatch):
+    monkeypatch.setattr(
+        rag_pipeline,
+        "reformular_con_historial",
+        lambda *_: (_ for _ in ()).throw(AssertionError("No debe reformular una consulta ambigua")),
+    )
+    monkeypatch.setattr(
+        rag_pipeline,
+        "buscar_fragmentos",
+        lambda *_: (_ for _ in ()).throw(AssertionError("No debe recuperar antes de aclarar")),
+    )
+    monkeypatch.setattr(
+        rag_pipeline,
+        "generar_respuesta",
+        lambda *_: (_ for _ in ()).throw(AssertionError("No debe llamar a Groq")),
+    )
+    monkeypatch.setattr(
+        rag_pipeline,
+        "settings",
+        SimpleNamespace(rag_ambiguity_detection_enabled=True),
+    )
+
+    resultado = rag_pipeline.armar_respuesta("¿Qué caudal nominal tiene la bomba?", "V2.0", "mechanic", [])
+
+    assert resultado["needs_clarification"] is True
+    assert resultado["clarification_kind"] == "technical"
+    assert all(codigo in resultado["message"]["content"] for codigo in ("CMP-01", "CMP-02", "CMP-03"))
+    assert resultado["sources"] == []
+    assert resultado["documents_consulted"] == 0

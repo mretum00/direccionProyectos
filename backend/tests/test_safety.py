@@ -54,3 +54,20 @@ def test_puede_devolver_aviso_educativo_y_critico_a_la_vez():
 
     codigos = {alerta["code"] for alerta in alertas}
     assert codigos == {"real_vehicle", "high_voltage"}
+
+
+def test_detecta_tes01_rojo_parpadeante_como_sobrecalentamiento_critico():
+    alertas = evaluar_alertas_seguridad(
+        "El testigo TES-01 está rojo y parpadea."
+    )
+
+    assert [alerta["code"] for alerta in alertas] == ["engine_overheating"]
+    assert alertas[0]["severity"] == "critical"
+
+
+def test_tes01_amarillo_fijo_no_activa_alerta_critica_de_parada():
+    alertas = evaluar_alertas_seguridad(
+        "El testigo TES-01 está amarillo fijo."
+    )
+
+    assert alertas == []

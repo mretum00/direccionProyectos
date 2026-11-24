@@ -25,7 +25,7 @@ from config import settings  # noqa: E402
 from services.retrieval import anadir_notas_de_alcance, buscar_fragmentos  # noqa: E402
 from services.suficiencia_evidencia import evaluar_suficiencia_evidencia  # noqa: E402
 
-BENCHMARK_DEFAULT = Path(__file__).with_name("benchmark_r06_r07_v1.json")
+BENCHMARK_DEFAULT = Path(__file__).with_name("benchmark_r06_r07_v1_1.json")
 CONTROLES_POSITIVOS_DEFAULT = Path(__file__).with_name("benchmark_r07_controles_positivos.json")
 
 
