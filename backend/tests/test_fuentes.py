@@ -54,3 +54,16 @@ def test_construir_fuentes_distingue_citadas_y_recuperadas():
     assert fuentes[0]["citation_status"] == "cited"
     assert fuentes[1]["citation_status"] == "retrieved"
     assert fuentes[0]["document"] == "HTM240-DTC-001_Catalogo_DTC.pdf"
+
+
+def test_contrato_source_admite_cita_literal_verificada_por_backend():
+    from models.schemas import Source
+
+    fuente = Source(
+        id="HTM240-CAT-001_Catalogo_componentes.pdf_2",
+        document="HTM240-CAT-001_Catalogo_componentes.pdf",
+        source_type="manual",
+        citation_status="verified",
+    )
+
+    assert fuente.citation_status == "verified"

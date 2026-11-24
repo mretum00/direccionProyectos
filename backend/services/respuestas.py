@@ -14,7 +14,6 @@ import uuid
 
 from config import ENGINE_VERSIONS, settings
 
-from .retrieval import documento_de
 
 
 # Tipo de documento (según su código, HTM240-XXX-001) -> tipo de fuente del contrato.
@@ -76,6 +75,8 @@ def construir_fuentes(
     al modelo. Los fragmentos restantes se conservan como contexto recuperado, no como
     referencias declaradas por el asistente.
     """
+    from .retrieval import documento_de
+
     referencias_citadas = referencias_citadas or set()
     fuentes = []
     for indice, f in enumerate(fragmentos, start=1):
@@ -156,3 +157,101 @@ def pedir_aclaracion(version_recibida: str) -> dict:
         "sources": [],
         "documents_consulted": 0,
     }
+
+def _normalizar_cita(texto: str) -> str:
+    """Normaliza una cita para volver a comprobarla antes de mostrarla."""
+    import unicodedata
+
+    return " ".join(unicodedata.normalize("NFKC", texto).casefold().split())
+
+
+def respuesta_limitada_por_verificacion(
+    verificacion: dict,
+    fragmentos: list[dict],
+) -> tuple[str, set[int]]:
+    """Construye una respuesta conservadora solo con afirmaciones verificadas.
+
+    No vuelve a llamar al LLM. Solo conserva afirmaciones ``supported`` que tengan
+    una cita literal validada dentro de un fragmento identificado. Devuelve también
+    los índices 1-based que deben marcarse como fuentes citadas en la respuesta.
+    """
+    fragmentos_por_id = {
+        str(fragmento.get("chunk_id")): (indice, fragmento)
+        for indice, fragmento in enumerate(fragmentos, start=1)
+        if fragmento.get("chunk_id")
+    }
+
+    afirmaciones_respaldadas: list[tuple[str, str, list[int]]] = []
+    for afirmacion in verificacion.get("claims", []):
+        if not isinstance(afirmacion, dict) or afirmacion.get("status") != "supported":
+            continue
+
+        claim = str(afirmacion.get("claim", "")).strip()
+        cita = str(afirmacion.get("evidence_excerpt", "")).strip()
+        ids_fuente = afirmacion.get("source_ids", [])
+        if not claim or not cita or not isinstance(ids_fuente, list):
+            continue
+
+        indices_validos: list[int] = []
+        cita_normalizada = _normalizar_cita(cita)
+        for source_id in ids_fuente:
+            localizado = fragmentos_por_id.get(str(source_id))
+            if localizado is None:
+                continue
+            indice, fragmento = localizado
+            texto_fuente = _normalizar_cita(str(fragmento.get("texto", "")))
+            if cita_normalizada and cita_normalizada in texto_fuente:
+                indices_validos.append(indice)
+
+        if indices_validos:
+            # Evita que el modelo introduzca referencias [Fxx] falsas dentro del texto de claim.
+            claim = re.sub(r"\s*\[F\d+\]", "", claim).strip()
+            afirmaciones_respaldadas.append((claim, cita, sorted(set(indices_validos))))
+
+    total = max(
+        int(verificacion.get("claims_total", len(verificacion.get("claims", [])))),
+        len(verificacion.get("claims", [])),
+    )
+    omitidas = max(total - len(afirmaciones_respaldadas), 0)
+    referencias: set[int] = set()
+
+    if not afirmaciones_respaldadas:
+        texto = (
+            "La revisión automática no ha encontrado ninguna afirmación con una cita literal "
+            "validada en los fragmentos recuperados. Para evitar presentar información técnica "
+            "no comprobada, no se muestra la respuesta generada. Consulta la documentación "
+            "original o solicita una revisión al equipo técnico."
+        )
+        return texto, referencias
+
+    lineas = [
+        "La revisión automática ha detectado afirmaciones que no ha podido respaldar por completo. "
+        "Para evitar presentar información no confirmada, se muestran únicamente las afirmaciones "
+        "con una cita literal validada.",
+        "",
+        "### Información respaldada",
+    ]
+    for claim, cita, indices in afirmaciones_respaldadas:
+        refs = " ".join(f"[F{indice}]" for indice in indices)
+        referencias.update(indices)
+        lineas.extend([f"- {claim} {refs}", f"  > {cita}", ""])
+
+    if omitidas:
+        lineas.append(
+            f"Se han omitido {omitidas} afirmación(es) que no pudieron verificarse "
+            "o presentaron posibles contradicciones."
+        )
+
+    lineas.extend(["", "### FUENTES"])
+    for indice in sorted(referencias):
+        fragmento = fragmentos[indice - 1]
+        chunk_id = str(fragmento.get("chunk_id", ""))
+        documento = chunk_id.rsplit("_", 1)[0] if "_" in chunk_id else chunk_id
+        seccion = str(fragmento.get("seccion") or "")
+        pagina = fragmento.get("pagina")
+        detalle = " · ".join(parte for parte in (documento, seccion) if parte)
+        if pagina is not None:
+            detalle = f"{detalle} · página {pagina}"
+        lineas.append(f"- [F{indice}] {detalle}" if detalle else f"- [F{indice}]")
+
+    return "\n".join(lineas).strip(), referencias

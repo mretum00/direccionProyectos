@@ -182,6 +182,119 @@ def test_verificacion_de_afirmaciones_se_incluye_en_la_respuesta(monkeypatch):
     assert resultado["claim_verification"] == verificacion
 
 
+def test_verificacion_limita_respuesta_a_afirmaciones_respaldadas(monkeypatch):
+    chunk_id = "HTM240-CAT-001_Catalogo_componentes.pdf_2"
+    fragmentos = [{
+        "chunk_id": chunk_id,
+        "texto": "CMP-02: Caudal nominal 8-14 l/min, 12V, 3-6A",
+        "seccion": "CMP-02",
+        "pagina": 1,
+        "score": 0.75,
+    }]
+    verificacion = {
+        "status": "needs_review",
+        "claims_total": 2,
+        "claims_supported": 1,
+        "claims": [
+            {
+                "claim": "CMP-02 tiene un caudal nominal de 8-14 l/min.",
+                "status": "supported",
+                "source_ids": [chunk_id],
+                "evidence_excerpt": "Caudal nominal 8-14 l/min",
+            },
+            {
+                "claim": "CMP-02 consume siempre 20 A.",
+                "status": "not_found",
+                "source_ids": [],
+                "evidence_excerpt": None,
+            },
+        ],
+    }
+    monkeypatch.setattr(rag_pipeline, "reformular_con_historial", lambda mensaje, _historial: mensaje)
+    monkeypatch.setattr(rag_pipeline, "traducir_consulta", lambda mensaje: mensaje)
+    monkeypatch.setattr(rag_pipeline, "buscar_fragmentos", lambda *_: fragmentos)
+    monkeypatch.setattr(rag_pipeline, "construir_prompt", lambda *_: "prompt de prueba")
+    monkeypatch.setattr(
+        rag_pipeline,
+        "generar_respuesta",
+        lambda _prompt: "CMP-02 tiene un caudal de 8-14 l/min y siempre consume 20 A.",
+    )
+    monkeypatch.setattr(rag_pipeline, "verificar_afirmaciones", lambda *_: verificacion)
+
+    def construir_fuentes(fragmentos_recibidos, _version, referencias):
+        return [{
+            "id": fragmento["chunk_id"],
+            "document": "HTM240-CAT-001_Catalogo_componentes.pdf",
+            "citation_status": "cited" if indice in referencias else "retrieved",
+        } for indice, fragmento in enumerate(fragmentos_recibidos, start=1)]
+
+    monkeypatch.setattr(rag_pipeline, "construir_fuentes", construir_fuentes)
+    monkeypatch.setattr(rag_pipeline, "settings", SimpleNamespace(
+        rag_top_k=5,
+        rag_evidence_min_score=0.3,
+        rag_evidence_high_score=0.5,
+        rag_claim_verification_enabled=True,
+        rag_evidence_sufficiency_enabled=False,
+    ))
+
+    resultado = rag_pipeline.armar_respuesta("¿Qué caudal tiene CMP-02?", "V2.0", "mechanic", [])
+
+    assert "caudal nominal de 8-14 l/min" in resultado["message"]["content"]
+    assert "siempre consume 20 A" not in resultado["message"]["content"]
+    assert resultado["claim_verification"]["answer_restricted"] is True
+    assert resultado["evidence_status"] == "medium"
+    assert resultado["sources"][0]["citation_status"] == "verified"
+    assert "[F1]" in resultado["message"]["content"]
+
+
+def test_verificacion_sin_afirmaciones_respaldadas_bloquea_respuesta_generada(monkeypatch):
+    chunk_id = "HTM240-CAT-001_Catalogo_componentes.pdf_2"
+    fragmentos = [{
+        "chunk_id": chunk_id,
+        "texto": "CMP-02: caudal 8-14 l/min",
+        "seccion": "CMP-02",
+        "pagina": 1,
+        "score": 0.75,
+    }]
+    verificacion = {
+        "status": "needs_review",
+        "claims_total": 1,
+        "claims_supported": 0,
+        "claims": [{
+            "claim": "CMP-02 entrega 8 bar.",
+            "status": "not_found",
+            "source_ids": [],
+            "evidence_excerpt": None,
+        }],
+    }
+    monkeypatch.setattr(rag_pipeline, "reformular_con_historial", lambda mensaje, _historial: mensaje)
+    monkeypatch.setattr(rag_pipeline, "traducir_consulta", lambda mensaje: mensaje)
+    monkeypatch.setattr(rag_pipeline, "buscar_fragmentos", lambda *_: fragmentos)
+    monkeypatch.setattr(rag_pipeline, "construir_prompt", lambda *_: "prompt de prueba")
+    monkeypatch.setattr(rag_pipeline, "generar_respuesta", lambda _prompt: "CMP-02 entrega 8 bar.")
+    monkeypatch.setattr(rag_pipeline, "verificar_afirmaciones", lambda *_: verificacion)
+    monkeypatch.setattr(rag_pipeline, "construir_fuentes", lambda fs, _version, _refs: [{
+        "id": fs[0]["chunk_id"],
+        "document": "HTM240-CAT-001_Catalogo_componentes.pdf",
+        "citation_status": "retrieved",
+    }])
+    monkeypatch.setattr(rag_pipeline, "settings", SimpleNamespace(
+        rag_top_k=5,
+        rag_evidence_min_score=0.3,
+        rag_evidence_high_score=0.5,
+        rag_claim_verification_enabled=True,
+        rag_evidence_sufficiency_enabled=False,
+    ))
+
+    resultado = rag_pipeline.armar_respuesta("¿Qué presión tiene CMP-02?", "V2.0", "mechanic", [])
+
+    assert "no se muestra la respuesta generada" in resultado["message"]["content"]
+    assert "8 bar" not in resultado["message"]["content"]
+    assert resultado["evidence_status"] == "insufficient"
+    assert resultado["claim_verification"]["answer_restricted"] is True
+    assert resultado["sources"][0]["citation_status"] == "retrieved"
+
+
 def test_fallo_del_verificador_no_interrumpe_la_respuesta(monkeypatch):
     fragmentos = [{"chunk_id": "DTC-001_1", "score": 0.75}]
     monkeypatch.setattr(rag_pipeline, "reformular_con_historial", lambda mensaje, _historial: mensaje)

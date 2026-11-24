@@ -28,9 +28,11 @@ export function SourceModal({ source, onClose }: SourceModalProps) {
         <div className="rounded-lg bg-fondo border border-contraste/5 p-3">
           <span className="text-xs text-texto-500">Relación con la respuesta</span>
           <p className="text-sm text-texto-200 mt-1">
-            {source.citation_status === 'cited'
-              ? 'El modelo la ha señalado expresamente en su apartado FUENTE. Esto no verifica automáticamente que cada afirmación esté respaldada.'
-              : 'Este fragmento se recuperó y se entregó al modelo como contexto, pero no fue citado expresamente en su apartado FUENTE.'}
+            {source.citation_status === 'verified'
+              ? 'El backend ha asociado esta fuente a una afirmación marcada como respaldada y ha comprobado que la cita literal aparece en el fragmento. La revisión es automática y orientativa; no sustituye la comprobación del documento original.'
+              : source.citation_status === 'cited'
+                ? 'El modelo la ha señalado expresamente en su apartado FUENTE. Esa declaración no verifica automáticamente que cada afirmación esté respaldada.'
+                : 'Este fragmento se recuperó y se entregó al modelo como contexto, pero no fue citado expresamente como respaldo de la respuesta.'}
           </p>
         </div>
 
