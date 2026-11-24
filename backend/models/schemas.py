@@ -79,6 +79,46 @@ class Source(BaseModel):
     citation_status: Literal["cited", "retrieved"] = "retrieved"
 
 
+class StepFragment(BaseModel):
+    """Fragmento recuperado durante la búsqueda y si se usó en la respuesta."""
+
+    document: str
+    source_type: SourceType
+    page: int | None = None
+    section: str | None = None
+    score: float
+    used: bool
+
+
+class StepPoint(BaseModel):
+    """Resumen breve de una comprobación y las referencias documentales que la respaldan."""
+
+    text: str
+    refs: list[str] | None = None
+
+
+class QueryStage(BaseModel):
+    """Etapa observable de transformación de la consulta."""
+
+    label: str
+    text: str
+    terms: list[str] | None = None
+    note: str | None = None
+
+
+class ReasoningStep(BaseModel):
+    """Fase observable del proceso RAG, no una transcripción del razonamiento interno del modelo."""
+
+    kind: Literal["query", "interpretation", "search", "analysis", "conclusion"]
+    title: str
+    detail: str | None = None
+    stages: list[QueryStage] | None = None
+    terms: list[str] | None = None
+    fragments: list[StepFragment] | None = None
+    points: list[StepPoint] | None = None
+    evidence: EvidenceStatus | None = None
+
+
 class SafetyAlert(BaseModel):
     """Aviso determinista de seguridad, independiente del texto generado por el LLM."""
 
@@ -137,6 +177,8 @@ class AnswerMeta(BaseModel):
     claim_verification: ClaimVerification | None = None
     # Evaluación previa: distingue relevancia de los fragmentos y cobertura real de la pregunta.
     evidence_sufficiency: EvidenceSufficiency | None = None
+    # Pasos observables del proceso RAG (compatibles con mensajes antiguos en texto plano).
+    steps: list[ReasoningStep | str] | None = None
 
 
 class ChatResponse(AnswerMeta):

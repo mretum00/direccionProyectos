@@ -22,6 +22,9 @@ def formatear_historial(historial: list[dict], max_chars: int = 500) -> str:
     for h in historial:
         # Cada mensaje del frontend trae "role" ("user" o "assistant") y "content".
         quien = "Usuario" if h["role"] == "user" else "Asistente"
+        version_mensaje = str(h.get("engine_version") or "").strip()
+        if version_mensaje:
+            quien = f"{quien} [{version_mensaje}]"
         texto = h["content"].strip()
         # Recorte: evita que una respuesta larga del asistente ocupe medio prompt.
         if len(texto) > max_chars:
@@ -125,8 +128,10 @@ REGLAS CRÍTICAS DE PRECISIÓN, VERSIONES Y OBSOLESCENCIA (OBLIGATORIAS):
 2. DATOS OBSOLETOS Y JERARQUÍA DOCUMENTAL (Boletín > Manual vigente > Manual obsoleto):
    - Da siempre como respuesta principal el dato VIGENTE indicando en qué documento y versión se aplica.
    - ADICIONALMENTE, si en el contexto aparece un valor anterior u obsoleto o un boletín que corrige un documento (ej. HTM240-BOL-006 corrige los 80.000 km / 60 meses de HTM240-MNT-001 v1.0 a 60.000 km / 48 meses en v1.1; o HTM240-BOL-002 actualiza PRC-003 a v2.0), DEBES MENCIONAR EXPRESAMENTE qué dato está obsoleto, a qué versión antigua pertenecía y qué boletín/versión contiene el dato correcto vigente.
-3. LECTURA MULTIVERSIÓN (V1.0, V1.1 y V2.0):
-   - Aunque en la interfaz figure seleccionada la versión {version_seleccionada}, si el usuario NO especifica la versión en el texto de su pregunta y el dato o código consultado varía entre versiones (ej. corriente nominal de la bomba CMP-02: 3-5 A en V1.0 vs. 3-6 A en V1.1/V2.0 según HTM240-BOL-002; o el código HTM-0142: precalentamiento no completado en V1.x vs. fallo del sensor combinado CMP-18 en V2.0 según HTM240-BOL-003; o potencia del PTC CMP-12 en BOL-007), EXPÓN LOS DATOS DE TODAS LAS VERSIONES indicando cuál corresponde a cada una y pide confirmar la versión real del vehículo antes de sustituir piezas.
+3. COHERENCIA DE VERSIONES (V1.0, V1.1 y V2.0):
+   - La versión seleccionada en la interfaz ({version_seleccionada}) es la fuente de verdad para esta consulta. Si el usuario no escribe una versión en su pregunta, responde con la versión seleccionada; NUNCA pidas al usuario que confirme o indique su versión ni mezcles datos de otras versiones.
+   - El backend comprueba antes de recuperar documentos que una versión escrita en la pregunta coincida con la seleccionada. Si no coincide o el usuario pide comparar varias versiones en el mismo turno, el sistema solicita una aclaración y no llega a este prompt.
+   - En el historial, cada mensaje puede llevar su propia versión. No reutilices un dato de una respuesta anterior si pertenece a una versión distinta de la versión seleccionada para la consulta actual.
 4. AMBIGÜEDAD DE COMPONENTES (PROHIBIDO ASUMIR):
    - Si preguntan por "la bomba" sin especificar cuál, NO asumas CMP-02: pide aclaración indicando que existen tres bombas: CMP-01 (mecánica, CIR-01 motor), CMP-02 (eléctrica auxiliar A, CIR-02 batería) y CMP-03 (eléctrica auxiliar B, CIR-03 electrónica de potencia).
    - Si preguntan por "el radiador" sin especificar cuál, pide aclaración indicando que existen dos radiadores: CMP-05 (radiador principal, CIR-01) y CMP-06 (radiador auxiliar de baja temperatura, CIR-02/CIR-03).
@@ -142,6 +147,7 @@ REGLAS CRÍTICAS DE PRECISIÓN, VERSIONES Y OBSOLESCENCIA (OBLIGATORIAS):
    - Escribe cada referencia con su identificador exacto y, si está disponible, el documento, sección y página. Ejemplo: `- [F1] HTM240-DTC-001, sección HTM-0101, página 1`.
    - SOLO puedes utilizar identificadores que aparezcan en el CONTEXTO DOCUMENTAL. No inventes, modifiques ni deduzcas otros identificadores.
    - Si ningún fragmento respalda directamente la respuesta, no inventes referencias ni incluyas identificadores.
+8. NO EXPONGAS RAZONAMIENTO INTERNO: No incluyas transcripciones de razonamiento privado ni una cadena de pensamiento paso a paso. Limítate a la respuesta, las comprobaciones técnicas solicitadas y las referencias documentales. La interfaz muestra por separado las fases observables de búsqueda y cobertura calculadas por el backend.
 
 PROPORCIONALIDAD Y ESTRUCTURA DE SALIDA:
 - Empieza SIEMPRE con un encabezado `### RESUMEN` seguido de 1 o 2 frases cortas (unas 35 palabras como máximo) que den lo esencial: la conclusión o respuesta directa y, si aplica, lo más urgente. No uses viñetas, no cites códigos de procedimientos ni documentos y no repitas el detalle de las secciones siguientes (eso va después).

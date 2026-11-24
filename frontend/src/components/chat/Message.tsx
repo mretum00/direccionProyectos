@@ -4,6 +4,7 @@ import { User, Bot, AlertTriangle, Settings2, CheckCircle2, AlertCircle, CircleH
 import { useAppStore } from '@/store/appStore';
 import type { ChatMessage, SafetyAlert, ClaimVerification, ClaimCheck, EvidenceSufficiency, RequestedEvidenceStatus, Source, ClarificationKind } from '@/types/chat';
 import { EvidencePanel } from '@/components/sources/EvidencePanel';
+import { ReasoningSteps } from './ReasoningSteps';
 import { parseAnswer, stripSourceReferences, type ParsedAnswer } from '@/utils/answer';
 
 // Estilos del markdown definidos como variantes de Tailwind sobre el contenedor:
@@ -354,6 +355,11 @@ function MessageComponent({ message }: MessageProps) {
 
         <div className="flex-1 min-w-0 space-y-3 pt-1">
           <SafetyAlertsPanel alerts={safetyAlerts} />
+          {message.response?.steps && message.response.steps.length > 0 && (
+            <div className="pb-3 border-b border-contraste/5">
+              <ReasoningSteps steps={message.response.steps} />
+            </div>
+          )}
           {answer.sections.length > 0 ? (
             <StructuredAnswer {...answer} />
           ) : (

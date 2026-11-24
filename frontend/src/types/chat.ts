@@ -2,7 +2,7 @@ import type { Conversation } from './conversation';
 
 type Role = 'user' | 'assistant';
 
-type EvidenceStatus = 'high' | 'medium' | 'insufficient';
+export type EvidenceStatus = 'high' | 'medium' | 'insufficient';
 
 export type ClarificationKind = 'engine_version' | 'technical' | 'version_mismatch' | 'version_comparison';
 
@@ -88,6 +88,42 @@ export interface Source {
   citation_status?: 'cited' | 'retrieved';
 }
 
+/** Fragmento recuperado durante la búsqueda y si se usó en la respuesta. */
+export interface StepFragment {
+  document: string;
+  source_type: SourceType;
+  page?: number;
+  section?: string;
+  score: number;
+  used: boolean;
+}
+
+/** Resumen breve de una comprobación respaldada por fuentes. */
+export interface StepPoint {
+  text: string;
+  refs?: string[];
+}
+
+/** Etapa observable de transformación de la consulta. */
+export interface QueryStage {
+  label: string;
+  text: string;
+  terms?: string[];
+  note?: string;
+}
+
+/** Fases observables del proceso RAG; no contiene razonamiento interno del modelo. */
+export interface ReasoningStep {
+  kind: 'query' | 'interpretation' | 'search' | 'analysis' | 'conclusion';
+  title: string;
+  detail?: string;
+  stages?: QueryStage[];
+  terms?: string[];
+  fragments?: StepFragment[];
+  points?: StepPoint[];
+  evidence?: EvidenceStatus;
+}
+
 /** Respuesta de POST /api/chat. */
 export interface AssistantResponse {
   message: { id: string; content: string };
@@ -102,6 +138,8 @@ export interface AssistantResponse {
   claim_verification?: ClaimVerification;
   /** Comprobación previa de que los fragmentos cubren los datos solicitados (R07). */
   evidence_sufficiency?: EvidenceSufficiency;
+  /** Pasos observables del proceso RAG (texto plano en respuestas antiguas). */
+  steps?: (ReasoningStep | string)[];
   /** La conversación ya guardada en el backend, con la pregunta y esta respuesta. */
   conversation: Conversation;
 }

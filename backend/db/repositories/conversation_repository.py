@@ -158,7 +158,13 @@ class ConversationRepository:
 
                 # Las aclaraciones técnicas sí se conservan junto con la pregunta
                 # original para que la precisión posterior pueda resolverla.
-                entrada = {"role": m.role, "content": m.content}
+                # La versión se guarda por mensaje porque puede cambiar dentro de una conversación.
+                # El formateador del prompt la utiliza para evitar mezclar respuestas de motores distintos.
+                entrada = {
+                    "role": m.role,
+                    "content": m.content,
+                    "engine_version": m.engine_version or "",
+                }
                 if meta.get("clarification_kind") == "technical":
                     entrada["clarification_kind"] = "technical"
                 history.append(entrada)

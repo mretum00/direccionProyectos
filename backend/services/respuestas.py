@@ -143,8 +143,7 @@ def pedir_aclaracion(version_recibida: str) -> dict:
     else:
         texto = (
             "Antes de responderte necesito saber qué versión del motor tienes "
-            f"({opciones}) y qué tipo de usuario eres (Mecánico o Usuario). "
-            "Elígelos en el selector de motor."
+            f"({opciones}). Elígela en el selector de motor."
         )
 
     return {

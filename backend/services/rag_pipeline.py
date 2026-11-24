@@ -40,6 +40,7 @@ Modelos del contrato de la API: models/schemas.py (ChatResponse, Source, ...).
 
 import logging
 import uuid
+from datetime import datetime
 from typing import Optional
 
 from config import ENGINE_VERSIONS, settings
@@ -53,6 +54,7 @@ from .ambiguedad import (
     respuesta_aclaracion_tecnica,
 )
 from .prompts import construir_prompt
+from .pasos import paso_busqueda, paso_conclusion, paso_cobertura, paso_transformacion
 from .respuestas import (
     construir_fuentes,
     extraer_referencias_citadas,
@@ -157,6 +159,15 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
         mensaje_para_prompt = mensaje_limpio
 
     consulta_tecnica = traducir_consulta(pregunta_autonoma)
+    fecha_consulta = datetime.now().astimezone()
+    pasos = [paso_transformacion(
+        version_canonica,
+        perfil,
+        mensaje_limpio,
+        pregunta_autonoma,
+        consulta_tecnica,
+        fecha_consulta,
+    )]
 
     # 3. Buscar los fragmentos más relevantes de esa versión.
     fragmentos = buscar_fragmentos(
@@ -175,7 +186,19 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
     )
     # Si ningún fragmento se parece lo suficiente (o no hay), no se llama al LLM.
     if mejor_score_semantico < settings.rag_evidence_min_score:
+        pasos.append(paso_busqueda(version_canonica, fragmentos, set()))
+        pasos.append(paso_conclusion(
+            "insufficient",
+            mejor_score_semantico,
+            settings.rag_evidence_min_score,
+            settings.rag_evidence_high_score,
+            detalle_extra=(
+                f"La mejor similitud ({mejor_score_semantico:.2f}) no alcanza el mínimo "
+                f"configurado ({settings.rag_evidence_min_score:.2f}); no se llamó al generador."
+            ),
+        ))
         resultado = respuesta_sin_evidencia()
+        resultado["steps"] = pasos
         resultado["safety_alerts"] = alertas_seguridad
         resultado["claim_verification"] = resultado_verificacion_no_ejecutada()
         resultado["evidence_sufficiency"] = resultado_suficiencia_no_ejecutada()
@@ -212,6 +235,14 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
                 str(fragmento.get("chunk_id", "")).rsplit("_", 1)[0]
                 for fragmento in fragmentos if fragmento.get("chunk_id")
             })
+            pasos.append(paso_busqueda(version_canonica, fragmentos, set()))
+            pasos.append(paso_cobertura(resultado["evidence_sufficiency"]))
+            pasos.append(paso_conclusion(
+                "insufficient", mejor_score_semantico,
+                settings.rag_evidence_min_score, settings.rag_evidence_high_score,
+                detalle_extra="La comprobación de cobertura no estuvo disponible; se bloqueó la generación.",
+            ))
+            resultado["steps"] = pasos
             return resultado
 
         if suficiencia["status"] == "insufficient":
@@ -237,6 +268,15 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
                 "safety_alerts": alertas_seguridad,
                 "claim_verification": resultado_verificacion_no_ejecutada(),
                 "evidence_sufficiency": suficiencia,
+                "steps": pasos + [
+                    paso_busqueda(version_canonica, fragmentos, set()),
+                    paso_cobertura(suficiencia),
+                    paso_conclusion(
+                        "insufficient", mejor_score_semantico,
+                        settings.rag_evidence_min_score, settings.rag_evidence_high_score,
+                        detalle_extra="R07 no encontró evidencia suficiente para los datos solicitados; se omitió la generación.",
+                    ),
+                ],
             }
 
         # El generador solo recibirá fragmentos que contienen una cita literal validada
@@ -252,6 +292,14 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
                 str(fragmento.get("chunk_id", "")).rsplit("_", 1)[0]
                 for fragmento in fragmentos if fragmento.get("chunk_id")
             })
+            pasos.append(paso_busqueda(version_canonica, fragmentos, set()))
+            pasos.append(paso_cobertura(resultado["evidence_sufficiency"]))
+            pasos.append(paso_conclusion(
+                "insufficient", mejor_score_semantico,
+                settings.rag_evidence_min_score, settings.rag_evidence_high_score,
+                detalle_extra="R07 indicó cobertura positiva, pero no quedaron fragmentos con citas literales validadas.",
+            ))
+            resultado["steps"] = pasos
             return resultado
 
         if suficiencia["status"] == "partial":
@@ -313,6 +361,15 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
             "safety_alerts": alertas_seguridad,
             "claim_verification": resultado_verificacion_no_ejecutada(),
             "evidence_sufficiency": suficiencia,
+            "steps": pasos + [
+                paso_busqueda(version_canonica, fragmentos, set()),
+                paso_cobertura(suficiencia),
+                paso_conclusion(
+                    "insufficient", mejor_score_semantico,
+                    settings.rag_evidence_min_score, settings.rag_evidence_high_score,
+                    detalle_extra="No se pudo generar la respuesta técnica; se mantienen los avisos preventivos.",
+                ),
+            ],
         }
 
     # evidence_status: insuficiente si el propio LLM dice que no hay
@@ -332,6 +389,11 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
     # Solo se aceptan marcadores [F1]...[Fn] correspondientes a fragmentos del prompt.
     referencias_citadas = extraer_referencias_citadas(texto_respuesta, len(fragmentos_contexto))
     fuentes = construir_fuentes(fragmentos_contexto, version_canonica, referencias_citadas)
+    ids_citados = {fuente["id"] for fuente in fuentes if fuente.get("citation_status") == "cited"}
+    pasos.append(paso_busqueda(version_canonica, fragmentos, ids_citados))
+    cobertura_paso = paso_cobertura(suficiencia)
+    if cobertura_paso is not None:
+        pasos.append(cobertura_paso)
 
     # Segunda pasada opcional: revisa afirmaciones frente a los fragmentos que recibió el modelo.
     # Si el verificador falla, la respuesta original se conserva y se marca la revisión como no disponible.
@@ -346,12 +408,22 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
     # Se mantiene el recuento de todos los documentos recuperados que recibió el modelo.
     documentos = {fuente["document"] for fuente in fuentes}
 
+    pasos.append(paso_conclusion(
+        evidencia,
+        mejor_score_semantico,
+        settings.rag_evidence_min_score,
+        settings.rag_evidence_high_score,
+        fuentes=len(ids_citados),
+        documentos=len({fuente["document"] for fuente in fuentes if fuente.get("citation_status") == "cited"}),
+    ))
+
     return {
         "message": {
             "id": str(uuid.uuid4()),
             "role": "assistant",
             "content": texto_respuesta,
         },
+        "steps": pasos,
         "evidence_status": evidencia,
         "sources": fuentes,
         "documents_consulted": len(documentos),
