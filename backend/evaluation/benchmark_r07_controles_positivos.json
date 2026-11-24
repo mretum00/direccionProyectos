@@ -1,0 +1,28 @@
+{
+  "nombre": "ThermoDrive HTM-240 - Controles positivos de suficiencia R07",
+  "version": 1.0,
+  "descripcion": "Consultas cuyos datos sí aparecen explícitamente en el catálogo. Sirven para comprobar que R07 no se abstiene cuando la documentación sí responde.",
+  "casos": [
+    {
+      "id": "R07-P01-CAUDAL-CMP02",
+      "consulta": "¿Qué caudal nominal tiene la bomba eléctrica auxiliar A CMP-02?",
+      "version": "V2.0",
+      "dato_esperado": "8-14 l/min",
+      "fuente_esperada": "HTM240-CAT-001_Catalogo_componentes.pdf_2"
+    },
+    {
+      "id": "R07-P02-CONSUMO-CMP09",
+      "consulta": "¿Cuál es el consumo máximo especificado para el electroventilador CMP-09?",
+      "version": "V2.0",
+      "dato_esperado": "18 A",
+      "fuente_esperada": "HTM240-CAT-001_Catalogo_componentes.pdf_9"
+    },
+    {
+      "id": "R07-P03-PRESION-CMP07",
+      "consulta": "¿Qué presión nominal tiene el tapón del vaso de expansión CMP-07?",
+      "version": "V2.0",
+      "dato_esperado": "1.4 bar",
+      "fuente_esperada": "HTM240-CAT-001_Catalogo_componentes.pdf_7"
+    }
+  ]
+}

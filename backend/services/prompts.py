@@ -37,6 +37,7 @@ def construir_prompt(
     perfil: str,
     historial: Optional[list[dict]] = None,
     version: Optional[str] = None,
+    instruccion_suficiencia: Optional[str] = None,
 ) -> str:
     """Arma el prompt final: reglas + perfil + historial + fragmentos + pregunta.
 
@@ -47,7 +48,10 @@ def construir_prompt(
     #    de texto con una cabecera que lo identifica, para que el LLM pueda citarlo.
     #    Se usa .get con valor por defecto para que un fragmento incompleto no rompa el prompt.
     bloques_contexto = []
-    for f in fragmentos:
+    for indice, f in enumerate(fragmentos, start=1):
+        # Identificador corto y estable dentro de esta respuesta; el backend lo valida
+        # contra la lista real de fragmentos antes de mostrarlo como cita.
+        referencia = f"[F{indice}]"
         chunk_id = f.get("chunk_id", "Desconocido")
         documento = documento_de(chunk_id)
         categoria = f.get("categoria", "Manual")
@@ -66,7 +70,7 @@ def construir_prompt(
 
         # Cabecera entre corchetes (documento, fragmento, categoría, versiones...) y debajo el texto.
         bloques_contexto.append(
-            f"[Documento: {documento} | Fragmento: {chunk_id} | Categoría: {categoria} | Versiones aplicables: {versiones}{extra_str}]\n{texto}"
+            f"{referencia} [Documento: {documento} | Fragmento: {chunk_id} | Categoría: {categoria} | Versiones aplicables: {versiones}{extra_str}]\n{texto}"
         )
 
     # Los bloques se separan con una línea "---" para que el LLM vea dónde acaba cada fragmento.
@@ -95,6 +99,11 @@ def construir_prompt(
         else ""
     )
     version_seleccionada = version or "No especificada"
+    bloque_suficiencia = (
+        f"\nRESTRICCIÓN DE COBERTURA DOCUMENTAL (R07):\n{instruccion_suficiencia}\n"
+        if instruccion_suficiencia
+        else ""
+    )
 
     # 4. Prompt final. Orden del texto (NO escribir comentarios Python dentro de las
     #    comillas: se enviarían al LLM):
@@ -127,6 +136,12 @@ REGLAS CRÍTICAS DE PRECISIÓN, VERSIONES Y OBSOLESCENCIA (OBLIGATORIAS):
 6. FUERA DE ALCANCE vs. LÍMITE DE INFORMACIÓN:
    - Si preguntan por subsistemas ajenos (frenos, aceite de caja de cambios, compresor o gas del aire acondicionado del habitáculo), declara explícitamente que "No hay evidencia suficiente en la documentación" porque queda FUERA DEL ALCANCE del sistema ThermoDrive HTM-240, el cual solo cubre los tres circuitos térmicos (motor CIR-01, batería CIR-02 y electrónica de potencia CIR-03).
    - Si preguntan por un dato no documentado de un componente que sí existe (ej. par de apriete en Nm de la TCU CMP-13 o curva de resistencia en ohmios de CMP-14 a 20 °C), identifica primero el componente según el catálogo (HTM240-CAT-001) y aclara que "No hay evidencia suficiente en la documentación" porque el corpus no incluye tablas de pares de apriete ni curvas de resistencia eléctrica, recomendando escalar a soporte.
+7. TRAZABILIDAD DE FUENTES (OBLIGATORIA):
+   - Cada fragmento del CONTEXTO DOCUMENTAL tiene un identificador entre corchetes, por ejemplo [F1], [F2].
+   - En la sección `### FUENTE`, enumera únicamente los identificadores de los fragmentos que realmente has utilizado como apoyo para redactar la respuesta.
+   - Escribe cada referencia con su identificador exacto y, si está disponible, el documento, sección y página. Ejemplo: `- [F1] HTM240-DTC-001, sección HTM-0101, página 1`.
+   - SOLO puedes utilizar identificadores que aparezcan en el CONTEXTO DOCUMENTAL. No inventes, modifiques ni deduzcas otros identificadores.
+   - Si ningún fragmento respalda directamente la respuesta, no inventes referencias ni incluyas identificadores.
 
 PROPORCIONALIDAD Y ESTRUCTURA DE SALIDA:
 - Empieza SIEMPRE con un encabezado `### RESUMEN` seguido de 1 o 2 frases cortas (unas 35 palabras como máximo) que den lo esencial: la conclusión o respuesta directa y, si aplica, lo más urgente. No uses viñetas, no cites códigos de procedimientos ni documentos y no repitas el detalle de las secciones siguientes (eso va después).
@@ -141,6 +156,7 @@ PROPORCIONALIDAD Y ESTRUCTURA DE SALIDA:
 - En consultas directas simples (ej. preguntar solo qué función tiene un componente, qué herramienta usa un paso o cada cuántos km se cambia el fluido) o consultas fuera de alcance/ambiguas, usa `### RESUMEN` con la respuesta directa, completa y concisa, añade solo las secciones que realmente aporten (`### SEGURIDAD` si aplica) y cita la `### FUENTE`.
 - En ningún caso inventes pasos de desmontaje que nadie ha pedido ni rellenes secciones vacías con "No consta en la documentación recuperada": si una sección no tiene contenido, omítela.
 
+{bloque_suficiencia}
 CONTEXTO DOCUMENTAL RECUPERADO:
 {contexto_unido}
 

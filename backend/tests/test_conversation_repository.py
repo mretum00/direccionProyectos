@@ -70,3 +70,59 @@ def test_historial_reciente_se_devuelve_en_orden_cronologico(base_datos_temporal
     assert [mensaje["content"] for mensaje in historial] == [
         "Primera respuesta", "Segunda pregunta", "Segunda respuesta",
     ]
+
+
+def test_historial_conserva_aclaracion_tecnica_para_resolver_el_seguimiento(base_datos_temporal):
+    repositorio = ConversationRepository()
+    usuario = crear_usuario("usuario4")
+    conversation_id = str(uuid4())
+
+    repositorio.add_exchange(
+        usuario,
+        conversation_id,
+        "V2.0",
+        "mechanic",
+        NewMessage(
+            str(uuid4()), "user", "¿Cómo compruebo la bomba auxiliar?",
+            "2026-01-01T10:00:00Z", "V2.0", "mechanic",
+        ),
+        NewMessage(
+            str(uuid4()), "assistant",
+            "¿Te refieres a la bomba auxiliar A (CMP-02) o B (CMP-03)?",
+            "2026-01-01T10:00:01Z", "V2.0", "mechanic",
+            {"needs_clarification": True, "clarification_kind": "technical"},
+        ),
+    )
+
+    historial = repositorio.recent_history(usuario, conversation_id, 6)
+
+    assert [mensaje["role"] for mensaje in historial] == ["user", "assistant"]
+    assert historial[-1]["clarification_kind"] == "technical"
+    assert "CMP-02" in historial[-1]["content"]
+
+
+def test_historial_sigue_excluyendo_aclaraciones_de_version(base_datos_temporal):
+    repositorio = ConversationRepository()
+    usuario = crear_usuario("usuario5")
+    conversation_id = str(uuid4())
+
+    repositorio.add_exchange(
+        usuario,
+        conversation_id,
+        "",
+        "mechanic",
+        NewMessage(
+            str(uuid4()), "user", "¿Qué significa HTM-0142?",
+            "2026-01-01T10:00:00Z", "", "mechanic",
+        ),
+        NewMessage(
+            str(uuid4()), "assistant",
+            "Selecciona V1.0, V1.1 o V2.0.",
+            "2026-01-01T10:00:01Z", "", "mechanic",
+            {"needs_clarification": True, "clarification_kind": "engine_version"},
+        ),
+    )
+
+    historial = repositorio.recent_history(usuario, conversation_id, 6)
+
+    assert historial == []

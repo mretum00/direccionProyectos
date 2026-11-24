@@ -4,6 +4,8 @@ type Role = 'user' | 'assistant';
 
 type EvidenceStatus = 'high' | 'medium' | 'insufficient';
 
+export type ClarificationKind = 'engine_version' | 'technical' | 'version_mismatch' | 'version_comparison';
+
 export type SourceType =
   | 'manual'
   | 'dtc_catalog'
@@ -36,6 +38,44 @@ export interface ChatRequest {
   profile: Profile;
 }
 
+export interface SafetyAlert {
+  code: 'real_vehicle' | 'high_voltage' | 'engine_overheating';
+  severity: 'warning' | 'critical';
+  title: string;
+  message: string;
+}
+
+export type ClaimCheckStatus = 'supported' | 'conflicting' | 'not_found' | 'uncertain' | 'unverified';
+
+export interface ClaimCheck {
+  claim: string;
+  status: ClaimCheckStatus;
+  source_ids: string[];
+  evidence_excerpt?: string | null;
+}
+
+export interface ClaimVerification {
+  status: 'reviewed' | 'needs_review' | 'unavailable' | 'no_claims' | 'not_run';
+  claims_total: number;
+  claims_supported: number;
+  claims: ClaimCheck[];
+}
+
+export type RequestedEvidenceStatus = 'supported' | 'not_found' | 'uncertain' | 'conflicting';
+
+export interface RequestedEvidenceItem {
+  item: string;
+  status: RequestedEvidenceStatus;
+  source_ids: string[];
+  evidence_excerpt?: string | null;
+}
+
+export interface EvidenceSufficiency {
+  status: 'sufficient' | 'partial' | 'insufficient' | 'unavailable' | 'not_run';
+  requested_items: RequestedEvidenceItem[];
+  missing_information: string[];
+}
+
 export interface Source {
   id: string;
   document: string;
@@ -44,6 +84,8 @@ export interface Source {
   page?: number;
   engine_version?: string;
   excerpt?: string;
+  /** Citada explícitamente por el modelo o solo recuperada como contexto. */
+  citation_status?: 'cited' | 'retrieved';
 }
 
 /** Respuesta de POST /api/chat. */
@@ -51,8 +93,15 @@ export interface AssistantResponse {
   message: { id: string; content: string };
   evidence_status?: EvidenceStatus;
   needs_clarification?: boolean;
+  clarification_kind?: ClarificationKind;
   documents_consulted?: number;
   sources?: Source[];
+  /** Avisos deterministas de seguridad calculados por el backend, independientes del LLM. */
+  safety_alerts?: SafetyAlert[];
+  /** Revisión automática orientativa de afirmaciones frente a fragmentos recuperados. */
+  claim_verification?: ClaimVerification;
+  /** Comprobación previa de que los fragmentos cubren los datos solicitados (R07). */
+  evidence_sufficiency?: EvidenceSufficiency;
   /** La conversación ya guardada en el backend, con la pregunta y esta respuesta. */
   conversation: Conversation;
 }

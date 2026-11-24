@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Settings2, ChevronDown, AlertTriangle, Check, Info, User, Wrench, type LucideIcon } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
 import { ToggleGroup } from '@/components/ui/ToggleGroup';
-import { useToast } from '@/toast';
+import { useToast } from '@/useToast';
 import type { Profile } from '@/types/chat';
 import { ENGINE_NAME, PROFILES, isSelectionComplete, missingSelection, type EngineSelection } from '@/types/engine';
 

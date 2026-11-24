@@ -8,8 +8,9 @@ import { ChatWindow } from '@/components/chat/ChatWindow';
 import { DocumentsPage } from '@/pages/DocumentsPage';
 import { SystemInfoPage } from '@/pages/SystemInfoPage';
 import { Header } from '@/components/ui/Header';
-import { useToast } from '@/toast';
+import { useToast } from '@/useToast';
 import { Sidebar } from '@/components/conversations/ConversationSidebar';
+import { SafetyNotice } from '@/components/ui/SafetyNotice';
 
 export type Page = 'chat' | 'documents' | 'system';
 
@@ -117,6 +118,7 @@ export default function App() {
             onPageChange={setPage}
             onMenuClick={() => setSidebarOpen(true)}
           />
+          <SafetyNotice />
           <div className="flex-1 overflow-hidden">
             {page === 'chat' && <ChatWindow />}
             {page === 'documents' && <DocumentsPage />}

@@ -17,15 +17,23 @@ export function EvidencePanel({ sources }: EvidencePanelProps) {
   const [selected, setSelected] = useState<Source | null>(null);
   const [expanded, setExpanded] = useState(false);
 
-  const hidden = sources.length - VISIBLE_SOURCES;
-  const shown = expanded || hidden <= 0 ? sources : sources.slice(0, VISIBLE_SOURCES);
+  const citadas = sources.filter((source) => source.citation_status === 'cited');
+  const ordenadas = [...citadas, ...sources.filter((source) => source.citation_status !== 'cited')];
+  const hidden = ordenadas.length - VISIBLE_SOURCES;
+  const shown = expanded || hidden <= 0 ? ordenadas : ordenadas.slice(0, VISIBLE_SOURCES);
 
   return (
     <div className="space-y-2">
       <h3 className="text-marca-400 font-bold text-[11px] tracking-wider uppercase">
-        Fuentes
+        Fuentes y contexto documental
         <span className="text-texto-500 font-normal ml-1.5">({sources.length})</span>
       </h3>
+      <p className="text-[11px] text-texto-500 leading-relaxed">
+        {citadas.length > 0
+          ? `${citadas.length} referencia(s) señalada(s) por el modelo en su apartado FUENTE. Las demás son fragmentos recuperados que también recibió como contexto.`
+          : 'El modelo no ha señalado referencias explícitas en su apartado FUENTE. Se muestran los fragmentos recuperados que recibió como contexto.'}
+        {' '}La cita declarada por el modelo no constituye una verificación automática de cada afirmación.
+      </p>
 
       <div className="grid grid-cols-1 gap-2">
         {shown.map((source) => (

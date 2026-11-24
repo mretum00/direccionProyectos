@@ -135,12 +135,33 @@ class ConversationRepository:
                 return []
             rows = conversation.messages.order_by(Message.seq.desc())
             history = []
+            # Los intercambios se guardan siempre como pregunta de usuario seguida
+            # de respuesta del asistente. Al recorrerlos en orden inverso, si la
+            # respuesta es una aclaración de versión hay que excluir también la
+            # pregunta que la originó; de lo contrario esa pregunta aislada queda
+            # indebidamente en el historial.
+            omitir_pregunta_de_version = False
             for m in rows:
                 meta = json.loads(m.response) if m.response else {}
-                # Los avisos de "elige la versión" no le aportan nada al modelo.
-                if meta.get("needs_clarification"):
+
+                if (
+                    m.role == "assistant"
+                    and meta.get("needs_clarification")
+                    and meta.get("clarification_kind") != "technical"
+                ):
+                    omitir_pregunta_de_version = True
                     continue
-                history.append({"role": m.role, "content": m.content})
+
+                if m.role == "user" and omitir_pregunta_de_version:
+                    omitir_pregunta_de_version = False
+                    continue
+
+                # Las aclaraciones técnicas sí se conservan junto con la pregunta
+                # original para que la precisión posterior pueda resolverla.
+                entrada = {"role": m.role, "content": m.content}
+                if meta.get("clarification_kind") == "technical":
+                    entrada["clarification_kind"] = "technical"
+                history.append(entrada)
                 if len(history) == limit:
                     break
             return list(reversed(history))

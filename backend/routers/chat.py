@@ -27,6 +27,7 @@ from db.models import User
 from db.repositories import ConversationRepository, NewMessage
 from models.schemas import ChatRequest, ChatResponse
 from services import rag_pipeline, registro
+from services.errores_llm import LLMServiceError
 from services.auth import usuario_actual
 
 logger = logging.getLogger("ThermoDriveRAG")
@@ -122,6 +123,14 @@ def chat(request: ChatRequest, user: User = Depends(usuario_actual)):
             request.profile.value,
             historial,
         )
+    except LLMServiceError as exc:
+        segundos = perf_counter() - inicio
+        logger.warning("Fallo del servicio de IA (%s)", exc.code, exc_info=True)
+        _registrar_sin_interrumpir(
+            request, {}, segundos, user, conversation_id, question_id,
+            estado="error", error=exc.code,
+        )
+        raise HTTPException(status_code=exc.http_status, detail=exc.user_message) from exc
     except Exception as exc:
         segundos = perf_counter() - inicio
         logger.exception("Error en el pipeline RAG")

@@ -4,7 +4,7 @@ import { Logo } from '@/components/ui/Logo';
 import type { ToastData } from '@/components/ui/Toast';
 import { navigate } from '@/router';
 import { ApiError } from '@/services/api';
-import { useToast } from '@/toast';
+import { useToast } from '@/useToast';
 
 /** Mismas reglas que el backend (models/schemas.py): así el error se ve antes de enviar. */
 const USERNAME_PATTERN = /^\S{3,50}$/;

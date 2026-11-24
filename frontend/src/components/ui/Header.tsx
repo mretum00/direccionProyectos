@@ -1,6 +1,6 @@
 import { Menu, MessageSquare, FileText, Info, LogOut, type LucideIcon } from 'lucide-react';
 import type { Page } from '@/App';
-import { useAuth } from '@/auth';
+import { useAuth } from '@/useAuth';
 import { EngineSelector } from '@/components/engine/EngineSelector';
 import { Logo } from './Logo';
 

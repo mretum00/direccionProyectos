@@ -47,10 +47,38 @@ def _extracto(texto: str, limite: int) -> str:
     return texto[:limite] + "..." if len(texto) > limite else texto
 
 
-def construir_fuentes(fragmentos: list[dict], version: str) -> list[dict]:
-    """Convierte cada fragmento en una fuente con el formato de `Source` (schemas.py)."""
+def extraer_referencias_citadas(texto_respuesta: str, total_fragmentos: int) -> set[int]:
+    """Extrae los marcadores [F1], [F2] de la sección FUENTE y valida su rango.
+
+    Los marcadores no se aceptan desde otras partes de la respuesta. Así, una mención
+    casual dentro del resumen no convierte por sí sola un fragmento en fuente citada.
+    Devuelve índices 1-based que corresponden al orden de fragmentos del prompt.
+    """
+    seccion = re.search(
+        r"(?im)^#{1,6}\s*FUENTES?\s*$([\s\S]*?)(?=^#{1,6}\s+|\Z)",
+        texto_respuesta,
+    )
+    if not seccion:
+        return set()
+
+    encontrados = re.findall(r"\[F(\d+)\]", seccion.group(1), flags=re.IGNORECASE)
+    return {int(valor) for valor in encontrados if 1 <= int(valor) <= total_fragmentos}
+
+
+def construir_fuentes(
+    fragmentos: list[dict],
+    version: str,
+    referencias_citadas: set[int] | None = None,
+) -> list[dict]:
+    """Convierte los fragmentos en fuentes y distingue citas del contexto recuperado.
+
+    `referencias_citadas` contiene índices 1-based validados contra el contexto entregado
+    al modelo. Los fragmentos restantes se conservan como contexto recuperado, no como
+    referencias declaradas por el asistente.
+    """
+    referencias_citadas = referencias_citadas or set()
     fuentes = []
-    for f in fragmentos:
+    for indice, f in enumerate(fragmentos, start=1):
         chunk_id = f["chunk_id"]
         documento = documento_de(chunk_id)
 
@@ -75,6 +103,7 @@ def construir_fuentes(fragmentos: list[dict], version: str) -> list[dict]:
             # Versiones a las que aplica el fragmento, no la elegida por el usuario.
             "engine_version": ", ".join(f.get("versiones") or [version]),
             "excerpt": _extracto(f["texto"], settings.source_excerpt_chars),
+            "citation_status": "cited" if indice in referencias_citadas else "retrieved",
         })
     return fuentes
 

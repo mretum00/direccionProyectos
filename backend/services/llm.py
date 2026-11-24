@@ -10,6 +10,8 @@ Todo lo que se le pide al LLM (Groq).
 """
 
 import logging
+import re
+import time
 from typing import Literal, cast
 
 import numpy as np
@@ -27,60 +29,152 @@ logger = logging.getLogger(__name__)
 _cliente_groq = None
 
 # Valores que admite Groq para `reasoning_effort` (LLM_REASONING_EFFORT en el .env).
-EsfuerzoRazonamiento = Literal["none", "default", "low", "medium", "high"]
+EsfuerzoRazonamiento = Literal["low", "medium", "high"]
 
 
 def _obtener_cliente():
     """Crea el cliente de Groq solo cuando hace falta.
 
-    Así el servidor arranca aunque falte la API key; el error salta al hacer
-    la primera consulta.
+    El SDK aplica hasta dos reintentos automáticos a errores transitorios; el timeout
+    limita cuánto puede quedar bloqueada una consulta.
     """
     global _cliente_groq
     if _cliente_groq is None:
         if not settings.groq_api_key:
-            raise RuntimeError("Falta GROQ_API_KEY en el archivo .env")
+            from .errores_llm import LLMServiceError
+
+            raise LLMServiceError(
+                "missing_api_key",
+                "El servicio de IA no está configurado. Contacta con el administrador.",
+            )
         from groq import Groq
-        _cliente_groq = Groq(api_key=settings.groq_api_key, timeout=30)
+        _cliente_groq = Groq(
+            api_key=settings.groq_api_key,
+            timeout=30,
+            max_retries=2,
+        )
     return _cliente_groq
 
 
-def generar_respuesta(prompt: str) -> str:
-    """Envía el prompt a Groq y devuelve el texto de la respuesta.
+def _llamar_groq(
+    prompt: str,
+    *,
+    verificacion: bool = False,
+    max_completion_tokens_override: int | None = None,
+    reasoning_effort_override: str | None = None,
+) -> str:
+    """Realiza una llamada a Groq y traduce sus errores a LLMServiceError.
 
-    Usa el modelo y la temperatura del .env. Si Groq falla (red, timeout...)
-    se registra el detalle en el log y se lanza un error genérico, sin exponer
-    información interna al usuario.
+    Para verificaciones estructuradas se puede reducir el presupuesto de salida y
+    usar el nivel mínimo de razonamiento admitido por Groq (low). Si Groq devuelve un 429 con una espera
+    transitoria explícita inferior a 1,5 s, se hace un único reintento acotado.
     """
-    from groq import omit
+    from .errores_llm import LLMServiceError, clasificar_error_groq
 
-    cliente = _obtener_cliente()
-
-    # Esfuerzo de razonamiento: solo para modelos que razonan (gpt-oss). Si en el
-    # .env está vacío, `omit` hace que no se envíe el parámetro.
-    esfuerzo = (
-        cast(EsfuerzoRazonamiento, settings.llm_reasoning_effort)
-        if settings.llm_reasoning_effort
-        else omit
-    )
     try:
-        respuesta = cliente.chat.completions.create(
-            model=settings.llm_model,
-            temperature=settings.llm_temperature,
-            messages=[{"role": "user", "content": prompt}],
-            # gpt-oss razona antes de contestar y ese razonamiento gasta tokens del
-            # mismo límite que la respuesta: con poco margen sale cortada o vacía.
-            max_completion_tokens=settings.llm_max_tokens,
-            reasoning_effort=esfuerzo,
-        )
-    except Exception:
-        logger.exception("Error al llamar a Groq")
-        raise RuntimeError("No se pudo obtener respuesta del modelo en este momento.")
+        from groq import omit
 
-    texto = (respuesta.choices[0].message.content or "").strip()
+        cliente = _obtener_cliente()
+        if reasoning_effort_override is not None:
+            esfuerzo = cast(EsfuerzoRazonamiento, reasoning_effort_override)
+        else:
+            esfuerzo = (
+                cast(EsfuerzoRazonamiento, settings.llm_reasoning_effort)
+                if settings.llm_reasoning_effort
+                else omit
+            )
+        limite_tokens = (
+            max_completion_tokens_override
+            if max_completion_tokens_override is not None
+            else (min(settings.llm_max_tokens, 1800) if verificacion else settings.llm_max_tokens)
+        )
+
+        for intento in range(2):
+            try:
+                respuesta = cliente.chat.completions.create(
+                    model=settings.llm_model,
+                    temperature=0.0 if verificacion else settings.llm_temperature,
+                    messages=[{"role": "user", "content": prompt}],
+                    max_completion_tokens=limite_tokens,
+                    reasoning_effort=esfuerzo,
+                )
+                break
+            except Exception as exc:
+                nombre_error = type(exc).__name__
+                espera = None
+                if nombre_error == "RateLimitError" or getattr(exc, "status_code", None) == 429:
+                    coincidencia = re.search(
+                        r"try again in ([0-9]+(?:\.[0-9]+)?)\s*ms",
+                        str(exc),
+                        flags=re.IGNORECASE,
+                    )
+                    if coincidencia:
+                        espera = float(coincidencia.group(1)) / 1000.0
+                if intento == 0 and espera is not None and 0 <= espera <= 1.5:
+                    time.sleep(espera + 0.1)
+                    continue
+                raise
+
+        opciones = getattr(respuesta, "choices", None) or []
+        mensaje = getattr(opciones[0], "message", None) if opciones else None
+        contenido = getattr(mensaje, "content", None)
+        return contenido.strip() if isinstance(contenido, str) else ""
+
+    except LLMServiceError:
+        raise
+    except Exception as exc:
+        logger.exception("Error al llamar a Groq (%s)", "verificación" if verificacion else "respuesta")
+        raise clasificar_error_groq(exc) from exc
+
+
+def generar_respuesta(prompt: str) -> str:
+    """Envía el prompt a Groq y devuelve el texto de la respuesta."""
+    texto = _llamar_groq(prompt)
     # Si el LLM devuelve vacío, se responde como "sin evidencia".
     if not texto:
+        logger.warning("Groq devolvió una respuesta vacía")
         return "No hay evidencia suficiente para responder. Se recomienda escalar la incidencia."
+    return texto
+
+
+def generar_verificacion(prompt: str) -> str:
+    """Hace una segunda pasada breve para revisar afirmaciones documentales.
+
+    El resultado lo valida después `services.verificacion`; no se considera fiable
+    sin comprobar sus citas contra el texto fuente.
+    """
+    from .errores_llm import LLMServiceError
+
+    texto = _llamar_groq(prompt, verificacion=True)
+    if not texto:
+        raise LLMServiceError(
+            "empty_verification_response",
+            "El verificador no devolvió contenido.",
+            retryable=True,
+        )
+    return texto
+
+
+def generar_evaluacion_suficiencia(prompt: str) -> str:
+    """Evalúa la cobertura documental antes de generar la respuesta RAG (R07).
+
+    Usa el canal de verificación (temperatura baja/cero y límite breve de tokens).
+    La salida JSON y sus citas se validan después en `services.suficiencia_evidencia`.
+    """
+    from .errores_llm import LLMServiceError
+
+    texto = _llamar_groq(
+        prompt,
+        verificacion=True,
+        max_completion_tokens_override=700,
+        reasoning_effort_override="low",
+    )
+    if not texto:
+        raise LLMServiceError(
+            "empty_sufficiency_response",
+            "El evaluador de suficiencia no devolvió contenido.",
+            retryable=True,
+        )
     return texto
 
 

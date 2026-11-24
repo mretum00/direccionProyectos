@@ -26,7 +26,8 @@ Flujo de una consulta:
       -> reformular_con_historial    hace que una pregunta de seguimiento se entienda sola
       -> traducir_consulta           pasa el lenguaje coloquial a términos técnicos
       -> buscar_fragmentos           busca los fragmentos más parecidos (usa cargar_fragmentos)
-      -> construir_prompt            junta reglas + fragmentos + pregunta
+      -> evaluar_suficiencia_evidencia comprueba cobertura documental (R07)
+      -> construir_prompt            junta reglas + fragmentos validados + pregunta
       -> generar_respuesta           llama al LLM (Groq)
       -> construir_fuentes           prepara las fuentes para el frontend
       -> armar_respuesta             orquesta todo (usa respuesta_sin_evidencia / pedir_aclaracion)
@@ -37,15 +38,42 @@ Configuración (backend/config.py -> `from config import settings`, valores en e
 Modelos del contrato de la API: models/schemas.py (ChatResponse, Source, ...).
 """
 
+import logging
 import uuid
 from typing import Optional
 
 from config import ENGINE_VERSIONS, settings
 
 from .llm import generar_respuesta, reformular_con_historial, traducir_consulta
+from .coherencia_version import detectar_incoherencia_version, respuesta_aclaracion_version
+from .ambiguedad import (
+    detectar_aclaracion_tecnica,
+    hay_aclaracion_tecnica_pendiente,
+    consulta_autonoma_tras_aclaracion,
+    respuesta_aclaracion_tecnica,
+)
 from .prompts import construir_prompt
-from .respuestas import construir_fuentes, pedir_aclaracion, respuesta_sin_evidencia
-from .retrieval import buscar_fragmentos
+from .respuestas import (
+    construir_fuentes,
+    extraer_referencias_citadas,
+    pedir_aclaracion,
+    respuesta_sin_evidencia,
+)
+from .retrieval import anadir_notas_de_alcance, buscar_fragmentos
+from .safety import evaluar_alertas_seguridad
+from .verificacion import (
+    resultado_verificacion_no_disponible,
+    resultado_verificacion_no_ejecutada,
+    verificar_afirmaciones,
+)
+from .suficiencia_evidencia import (
+    evaluar_suficiencia_evidencia,
+    fragmentos_con_evidencia_validada,
+    resultado_suficiencia_no_disponible,
+    resultado_suficiencia_no_ejecutada,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def validar_consulta(mensaje: str, version: str) -> tuple[str, Optional[str]]:
@@ -67,16 +95,67 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
     `historial` son los últimos mensajes del chat ([{"role", "content"}, ...]),
     tal como llegan del frontend.
     """
-    # 1. Validar mensaje y versión.
+    # 1. Aplicar la capa determinista de seguridad ANTES de consultar al LLM.
+    # Se evalúa incluso si falta la versión o la recuperación no encuentra evidencia.
     mensaje_limpio, version_canonica = validar_consulta(mensaje, version)
+    alertas_seguridad = evaluar_alertas_seguridad(mensaje_limpio, historial)
 
     # Versión vacía o desconocida: pedir que la elija, sin llamar al LLM.
+    # Los avisos de seguridad no dependen de que el usuario haya seleccionado versión.
     if version_canonica is None:
-        return pedir_aclaracion(version)
+        resultado = pedir_aclaracion(version)
+        resultado["clarification_kind"] = "engine_version"
+        resultado["safety_alerts"] = alertas_seguridad
+        resultado["claim_verification"] = resultado_verificacion_no_ejecutada()
+        return resultado
+
+    # 1a. Coherencia de versiones: el selector identifica la versión del vehículo.
+    # Si la pregunta menciona otra, o varias versiones, no recuperamos documentos
+    # ni llamamos al LLM hasta que el usuario elija una única versión coherente.
+    incoherencia_version = detectar_incoherencia_version(mensaje_limpio, version_canonica)
+    if incoherencia_version is not None:
+        resultado = respuesta_aclaracion_version(incoherencia_version, alertas_seguridad)
+        resultado["claim_verification"] = resultado_verificacion_no_ejecutada()
+        return resultado
+
+    # 1b. R06: detectar ambigüedades técnicas concretas antes de reformular,
+    # recuperar o llamar al LLM. Si el último turno fue una aclaración técnica,
+    # no se vuelve a preguntar: se deja que el historial ayude a resolver el seguimiento.
+    if (
+        getattr(settings, "rag_ambiguity_detection_enabled", False)
+        and not hay_aclaracion_tecnica_pendiente(historial)
+    ):
+        aclaracion = detectar_aclaracion_tecnica(mensaje_limpio)
+        if aclaracion is not None:
+            resultado = respuesta_aclaracion_tecnica(aclaracion, alertas_seguridad)
+            resultado["claim_verification"] = resultado_verificacion_no_ejecutada()
+            return resultado
 
     # 2. Reformular con el historial (para preguntas de seguimiento) y pasar
     #    la pregunta a lenguaje técnico. Ambas versiones solo sirven para buscar.
-    pregunta_autonoma = reformular_con_historial(mensaje_limpio, historial)
+    # Si el usuario está respondiendo a una aclaración técnica, combinar la pregunta
+    # original y la precisión aportada de forma determinista. Para otros seguimientos
+    # se mantiene la reformulación LLM habitual.
+    aclaracion_pendiente = hay_aclaracion_tecnica_pendiente(historial)
+    if aclaracion_pendiente:
+        pregunta_autonoma = consulta_autonoma_tras_aclaracion(mensaje_limpio, historial)
+        if pregunta_autonoma is None:
+            # La respuesta no identifica ninguna opción de forma inequívoca.
+            # Repetimos la aclaración y no permitimos que el LLM adivine.
+            resultado = respuesta_aclaracion_tecnica(
+                {"message": str(historial[-1].get("content", "¿Puedes concretar tu elección?"))},
+                alertas_seguridad,
+            )
+            resultado["claim_verification"] = resultado_verificacion_no_ejecutada()
+            return resultado
+        # La pregunta contextual y la selección explícita deben llegar tanto al
+        # recuperador como al prompt final. Enviar solo «La bomba A» al LLM
+        # hacía que volviera a preguntar qué bomba debía comprobar.
+        mensaje_para_prompt = pregunta_autonoma
+    else:
+        pregunta_autonoma = reformular_con_historial(mensaje_limpio, historial)
+        mensaje_para_prompt = mensaje_limpio
+
     consulta_tecnica = traducir_consulta(pregunta_autonoma)
 
     # 3. Buscar los fragmentos más relevantes de esa versión.
@@ -86,37 +165,185 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
         settings.rag_top_k,
     )
 
-    # Nivel de evidencia según la similitud del mejor fragmento.
-    # Si ninguno se parece lo suficiente (o no hay), no se llama al LLM.
-    mejor_score = fragmentos[0]["score"] if fragmentos else 0.0
-    if mejor_score < settings.rag_evidence_min_score:
-        return respuesta_sin_evidencia()
+    # La recuperación ordena por ranking_score, que puede incluir bonificaciones
+    # léxicas (por ejemplo, coincidencia exacta de un código DTC). La evidencia,
+    # en cambio, debe basarse en la mayor similitud semántica pura de los fragmentos
+    # que realmente se entregarán al modelo, no en el primero de la lista ordenada.
+    mejor_score_semantico = max(
+        (float(fragmento["score"]) for fragmento in fragmentos),
+        default=0.0,
+    )
+    # Si ningún fragmento se parece lo suficiente (o no hay), no se llama al LLM.
+    if mejor_score_semantico < settings.rag_evidence_min_score:
+        resultado = respuesta_sin_evidencia()
+        resultado["safety_alerts"] = alertas_seguridad
+        resultado["claim_verification"] = resultado_verificacion_no_ejecutada()
+        resultado["evidence_sufficiency"] = resultado_suficiencia_no_ejecutada()
+        return resultado
 
-    # 5. Construir el prompt. Se usa el mensaje original del usuario, no la
-    #    versión traducida (esa solo sirve para buscar).
+    # R07: la similitud solo indica relación temática. Antes de generar, comprobamos
+    # que los fragmentos contienen los datos concretos que solicita la pregunta.
+    suficiencia = resultado_suficiencia_no_ejecutada()
+    fragmentos_evaluacion = fragmentos
+    fragmentos_contexto = fragmentos
+    instruccion_suficiencia = None
+    if getattr(settings, "rag_evidence_sufficiency_enabled", False):
+        fragmentos_evaluacion = anadir_notas_de_alcance(
+            pregunta_autonoma, fragmentos, version_canonica
+        )
+        try:
+            suficiencia = evaluar_suficiencia_evidencia(
+                pregunta_autonoma, fragmentos_evaluacion
+            )
+        except Exception:
+            # Fail-closed: si no podemos evaluar cobertura, no dejamos que el generador
+            # responda basándose únicamente en la similitud temática.
+            logger.exception("No se pudo comprobar la suficiencia documental (R07)")
+            resultado = respuesta_sin_evidencia()
+            resultado["message"]["content"] = (
+                "No he podido comprobar si la documentación recuperada contiene los datos "
+                "necesarios para responder. Para evitar darte una especificación no verificada, "
+                "no voy a estimarla. Inténtalo de nuevo más tarde o consulta al equipo de soporte."
+            )
+            resultado["safety_alerts"] = alertas_seguridad
+            resultado["claim_verification"] = resultado_verificacion_no_ejecutada()
+            resultado["evidence_sufficiency"] = resultado_suficiencia_no_disponible()
+            resultado["documents_consulted"] = len({
+                str(fragmento.get("chunk_id", "")).rsplit("_", 1)[0]
+                for fragmento in fragmentos if fragmento.get("chunk_id")
+            })
+            return resultado
+
+        if suficiencia["status"] == "insufficient":
+            faltantes = suficiencia.get("missing_information", [])
+            detalle = "; ".join(faltantes[:6])
+            texto = (
+                "No hay evidencia suficiente en la documentación para responder a esta consulta. "
+                "Los fragmentos recuperados están relacionados con el tema, pero no permiten "
+                "establecer con fiabilidad los datos concretos solicitados."
+            )
+            if detalle:
+                texto += f" Información no localizada: {detalle}."
+            texto += " No voy a estimar ni completar esos datos. Se recomienda consultar la documentación oficial o escalar la consulta al equipo de soporte."
+            return {
+                "message": {"id": str(uuid.uuid4()), "role": "assistant", "content": texto},
+                "evidence_status": "insufficient",
+                "sources": [],
+                "documents_consulted": len({
+                    str(fragmento.get("chunk_id", "")).rsplit("_", 1)[0]
+                    for fragmento in fragmentos if fragmento.get("chunk_id")
+                }),
+                "needs_clarification": False,
+                "safety_alerts": alertas_seguridad,
+                "claim_verification": resultado_verificacion_no_ejecutada(),
+                "evidence_sufficiency": suficiencia,
+            }
+
+        # El generador solo recibirá fragmentos que contienen una cita literal validada
+        # para alguno de los elementos solicitados como supported.
+        fragmentos_contexto = fragmentos_con_evidencia_validada(fragmentos_evaluacion, suficiencia)
+        if not fragmentos_contexto:
+            logger.error("R07 indicó cobertura, pero no quedaron fragmentos con evidencia validada")
+            resultado = respuesta_sin_evidencia()
+            resultado["safety_alerts"] = alertas_seguridad
+            resultado["claim_verification"] = resultado_verificacion_no_ejecutada()
+            resultado["evidence_sufficiency"] = resultado_suficiencia_no_disponible()
+            resultado["documents_consulted"] = len({
+                str(fragmento.get("chunk_id", "")).rsplit("_", 1)[0]
+                for fragmento in fragmentos if fragmento.get("chunk_id")
+            })
+            return resultado
+
+        if suficiencia["status"] == "partial":
+            respaldados = [
+                item["item"] for item in suficiencia["requested_items"]
+                if item["status"] == "supported"
+            ]
+            no_respaldados = suficiencia.get("missing_information", [])
+            instruccion_suficiencia = (
+                "La cobertura documental es PARCIAL. Responde exclusivamente a estos aspectos "
+                "respaldados: " + "; ".join(respaldados) + ". "
+                "No afirmes ni deduzcas los siguientes datos porque no están respaldados: "
+                + ("; ".join(no_respaldados) if no_respaldados else "los restantes aspectos solicitados")
+                + ". Indica expresamente que no hay evidencia suficiente en la documentación "
+                "para esos datos y no los estimes."
+            )
+
+    # El score final y las fuentes se calculan sobre los fragmentos que realmente
+    # se entregan al generador, no sobre los que R07 ha descartado.
+    mejor_score_semantico = max(
+        (float(fragmento["score"]) for fragmento in fragmentos_contexto),
+        default=0.0,
+    )
+
+    # 5. Construir el prompt. En turnos normales se conserva el mensaje original.
+    #    Si R07 es parcial, el prompt limita explícitamente la respuesta a los datos probados.
     prompt_final = construir_prompt(
-        mensaje_limpio,
-        fragmentos,
+        mensaje_para_prompt,
+        fragmentos_contexto,
         perfil,
         historial,
         version_canonica,
+        instruccion_suficiencia,
     )
 
     # 6. Obtener la respuesta del LLM.
-    texto_respuesta = generar_respuesta(prompt_final)
+    # Si hay una señal crítica y el proveedor falla, se devuelve un mensaje preventivo
+    # determinista junto con las alertas; así el aviso no desaparece por un error de Groq.
+    try:
+        texto_respuesta = generar_respuesta(prompt_final)
+    except Exception:
+        if not alertas_seguridad:
+            raise
+        return {
+            "message": {
+                "id": str(uuid.uuid4()),
+                "role": "assistant",
+                "content": (
+                    "No se ha podido generar una respuesta técnica en este momento. "
+                    "No realices comprobaciones ni reparaciones basándote en una respuesta "
+                    "incompleta; sigue los avisos preventivos y consulta la documentación "
+                    "oficial o a un profesional cualificado."
+                ),
+            },
+            "evidence_status": "insufficient",
+            "sources": [],
+            "documents_consulted": 0,
+            "needs_clarification": False,
+            "safety_alerts": alertas_seguridad,
+            "claim_verification": resultado_verificacion_no_ejecutada(),
+            "evidence_sufficiency": suficiencia,
+        }
 
     # evidence_status: insuficiente si el propio LLM dice que no hay
     # evidencia; si no, alta o media según el mejor score.
-    if "no hay evidencia suficiente" in texto_respuesta.lower():
+    if suficiencia["status"] == "partial":
+        # La consulta sí contiene una parte respondible; el estado de cobertura
+        # parcial se expone por separado y no se degrada toda la respuesta a insuficiente.
+        evidencia = "medium"
+    elif "no hay evidencia suficiente" in texto_respuesta.lower():
         evidencia = "insufficient"
-    elif mejor_score >= settings.rag_evidence_high_score:
+    elif mejor_score_semantico >= settings.rag_evidence_high_score:
         evidencia = "high"
     else:
         evidencia = "medium"
 
-    # 7. Preparar las fuentes y contar los documentos distintos usados.
-    fuentes = construir_fuentes(fragmentos, version_canonica)
+    # 7. Identificar las referencias que el modelo declaró en ### FUENTE.
+    # Solo se aceptan marcadores [F1]...[Fn] correspondientes a fragmentos del prompt.
+    referencias_citadas = extraer_referencias_citadas(texto_respuesta, len(fragmentos_contexto))
+    fuentes = construir_fuentes(fragmentos_contexto, version_canonica, referencias_citadas)
 
+    # Segunda pasada opcional: revisa afirmaciones frente a los fragmentos que recibió el modelo.
+    # Si el verificador falla, la respuesta original se conserva y se marca la revisión como no disponible.
+    claim_verification = resultado_verificacion_no_ejecutada()
+    if getattr(settings, "rag_claim_verification_enabled", False) and evidencia != "insufficient":
+        try:
+            claim_verification = verificar_afirmaciones(texto_respuesta, fragmentos_contexto)
+        except Exception:
+            logger.exception("No se pudo completar la verificación de afirmaciones; se conserva la respuesta RAG")
+            claim_verification = resultado_verificacion_no_disponible()
+
+    # Se mantiene el recuento de todos los documentos recuperados que recibió el modelo.
     documentos = {fuente["document"] for fuente in fuentes}
 
     return {
@@ -129,4 +356,7 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
         "sources": fuentes,
         "documents_consulted": len(documentos),
         "needs_clarification": False,
+        "safety_alerts": alertas_seguridad,
+        "claim_verification": claim_verification,
+        "evidence_sufficiency": suficiencia,
     }

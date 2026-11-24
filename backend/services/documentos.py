@@ -7,7 +7,7 @@ los fragmentos por archivo (igual que hace `documento_de` al citar fuentes).
 
 - type:           se deduce del código del documento (HTM240-DTC-001 -> dtc_catalog...).
 - engine_version: unión de las versiones de sus fragmentos ("Todas las versiones" si cubre todas).
-- pages:          mayor página en la que empieza un fragmento (el diccionario no tiene páginas -> 0).
+- pages:          mayor página registrada entre los fragmentos del documento.
 - uploaded_at:    la BD no guarda fecha por documento: se usa la de generación de la BD.
 - status:         todo lo que está en la BD está procesado.
 """

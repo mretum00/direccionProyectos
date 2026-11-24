@@ -6,6 +6,7 @@ from fastapi import HTTPException
 
 from models.schemas import ChatRequest, Profile
 from routers import chat as chat_router
+from services.errores_llm import LLMServiceError
 
 
 class FakeConversationRepository:
@@ -130,3 +131,81 @@ def test_registra_error_si_falla_la_persistencia(monkeypatch):
     assert len(registros) == 1
     assert registros[0]["estado"] == "error_persistencia"
     assert registros[0]["error"] == "RuntimeError"
+
+
+def test_fallo_al_escribir_auditoria_no_impide_responder(monkeypatch):
+    repositorio = FakeConversationRepository()
+    monkeypatch.setattr(chat_router, "conversaciones", repositorio)
+
+    def falla_registro(*_args, **_kwargs):
+        raise OSError("disco no disponible")
+
+    monkeypatch.setattr(chat_router.registro, "registrar_consulta", falla_registro)
+    monkeypatch.setattr(chat_router.rag_pipeline, "armar_respuesta", lambda *_: {
+        "message": {"id": str(uuid4()), "content": "Respuesta de prueba"},
+        "evidence_status": "high",
+        "sources": [],
+        "documents_consulted": 0,
+    })
+    chat_router._canceladas.clear()
+
+    resultado = chat_router.chat(construir_peticion(), SimpleNamespace(id=9))
+
+    assert resultado["message"]["content"] == "Respuesta de prueba"
+    assert resultado["conversation"]["messages"][-1]["role"] == "assistant"
+
+
+def test_persiste_las_alertas_de_seguridad_en_el_mensaje_assistant(monkeypatch):
+    repositorio = FakeConversationRepository()
+    monkeypatch.setattr(chat_router, "conversaciones", repositorio)
+    monkeypatch.setattr(chat_router.registro, "registrar_consulta", lambda *a, **kw: None)
+    alertas = [{
+        "code": "high_voltage",
+        "severity": "critical",
+        "title": "Posible riesgo eléctrico o térmico crítico",
+        "message": "No manipules componentes de alta tensión.",
+    }]
+    monkeypatch.setattr(chat_router.rag_pipeline, "armar_respuesta", lambda *_: {
+        "message": {"id": str(uuid4()), "content": "Respuesta de prueba"},
+        "evidence_status": "insufficient",
+        "sources": [],
+        "documents_consulted": 0,
+        "safety_alerts": alertas,
+    })
+    chat_router._canceladas.clear()
+    peticion = construir_peticion()
+
+    resultado = chat_router.chat(peticion, SimpleNamespace(id=9))
+
+    clave = (str(peticion.conversation_id), str(peticion.message_id))
+    respuesta_guardada = repositorio.exchanges[clave][1]
+    assert resultado["safety_alerts"] == alertas
+    assert respuesta_guardada["response"]["safety_alerts"] == alertas
+
+
+
+def test_error_de_limite_de_groq_se_devuelve_como_http_429(monkeypatch):
+    repositorio = FakeConversationRepository()
+    registros = []
+    monkeypatch.setattr(chat_router, "conversaciones", repositorio)
+    monkeypatch.setattr(chat_router.registro, "registrar_consulta", lambda *a, **kw: registros.append(kw))
+
+    def limite_de_groq(*_args):
+        raise LLMServiceError(
+            "rate_limit",
+            "El servicio de IA está recibiendo demasiadas solicitudes.",
+            http_status=429,
+            retryable=True,
+        )
+
+    monkeypatch.setattr(chat_router.rag_pipeline, "armar_respuesta", limite_de_groq)
+    chat_router._canceladas.clear()
+
+    with pytest.raises(HTTPException) as error:
+        chat_router.chat(construir_peticion(), SimpleNamespace(id=9))
+
+    assert error.value.status_code == 429
+    assert "demasiadas solicitudes" in error.value.detail
+    assert len(registros) == 1
+    assert registros[0]["estado"] == "error"
+    assert registros[0]["error"] == "rate_limit"

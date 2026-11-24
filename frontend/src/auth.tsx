@@ -1,17 +1,18 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+
 import { ApiError, api, setUnauthorizedHandler } from '@/services/api';
 import { clearSession, loadSession, saveSession } from '@/services/session';
-import { useToast } from '@/toast';
+import { useToast } from '@/useToast';
 import type { ToastData } from '@/components/ui/Toast';
 import type { User } from '@/types/user';
 
-/**
- * Estado de la sesión:
- * - 'checking': hay un token guardado y se está comprobando con GET /api/auth/me.
- * - 'anonymous': no hay sesión (se muestra el login).
- * - 'authenticated': `user` es el usuario que ha iniciado sesión.
- */
-type AuthStatus = 'checking' | 'anonymous' | 'authenticated';
+import { AuthContext, type AuthStatus } from './authContext';
 
 /** Por qué se cierra la sesión: cada motivo tiene su aviso. Recargar con la sesión guardada no avisa. */
 type EndReason = 'logged_out' | 'expired' | 'offline';
@@ -29,16 +30,6 @@ const END_TOASTS: Record<EndReason, ToastData> = {
     description: 'Sin conexión con el servidor. Inicia sesión de nuevo cuando esté disponible.',
   },
 };
-
-interface AuthContextValue {
-  status: AuthStatus;
-  user: User | null;
-  login: (username: string, password: string) => Promise<void>;
-  register: (username: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const toast = useToast();
@@ -117,8 +108,3 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
-export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth must be used within AuthProvider');
-  return ctx;
-}

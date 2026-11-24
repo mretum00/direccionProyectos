@@ -75,6 +75,52 @@ class Source(BaseModel):
     page: int | None = None
     engine_version: str | None = None
     excerpt: str | None = None
+    # "cited": el modelo la declaró en ### FUENTE; "retrieved": solo se le entregó como contexto.
+    citation_status: Literal["cited", "retrieved"] = "retrieved"
+
+
+class SafetyAlert(BaseModel):
+    """Aviso determinista de seguridad, independiente del texto generado por el LLM."""
+
+    code: Literal["real_vehicle", "high_voltage", "engine_overheating"]
+    severity: Literal["warning", "critical"]
+    title: str
+    message: str
+
+
+class ClaimCheck(BaseModel):
+    """Resultado de revisión orientativa de una afirmación factual."""
+
+    claim: str
+    status: Literal["supported", "conflicting", "not_found", "uncertain", "unverified"]
+    source_ids: list[str] = Field(default_factory=list)
+    evidence_excerpt: str | None = None
+
+
+class ClaimVerification(BaseModel):
+    """Resumen de la segunda pasada de revisión frente al contexto documental."""
+
+    status: Literal["reviewed", "needs_review", "unavailable", "no_claims", "not_run"]
+    claims_total: int = 0
+    claims_supported: int = 0
+    claims: list[ClaimCheck] = Field(default_factory=list)
+
+
+class RequestedEvidenceItem(BaseModel):
+    """Un dato solicitado y el respaldo documental localizado para él."""
+
+    item: str
+    status: Literal["supported", "not_found", "uncertain", "conflicting"]
+    source_ids: list[str] = Field(default_factory=list)
+    evidence_excerpt: str | None = None
+
+
+class EvidenceSufficiency(BaseModel):
+    """Resultado de la comprobación previa de cobertura documental (R07)."""
+
+    status: Literal["sufficient", "partial", "insufficient", "unavailable", "not_run"]
+    requested_items: list[RequestedEvidenceItem] = Field(default_factory=list)
+    missing_information: list[str] = Field(default_factory=list)
 
 
 class AnswerMeta(BaseModel):
@@ -82,8 +128,15 @@ class AnswerMeta(BaseModel):
 
     evidence_status: EvidenceStatus | None = None
     needs_clarification: bool = False
+    clarification_kind: Literal["engine_version", "technical", "version_mismatch", "version_comparison"] | None = None
     documents_consulted: int | None = None
     sources: list[Source] | None = None
+    # Avisos calculados por el backend a partir de señales del mensaje, no del prompt/LLM.
+    safety_alerts: list[SafetyAlert] = Field(default_factory=list)
+    # Revisión orientativa de las afirmaciones frente a los fragmentos recuperados.
+    claim_verification: ClaimVerification | None = None
+    # Evaluación previa: distingue relevancia de los fragmentos y cobertura real de la pregunta.
+    evidence_sufficiency: EvidenceSufficiency | None = None
 
 
 class ChatResponse(AnswerMeta):

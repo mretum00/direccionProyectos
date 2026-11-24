@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { api } from '@/services/api';
 import { useAppStore } from '@/store/appStore';
-import { useToast } from '@/toast';
+import { useToast } from '@/useToast';
 import type { Conversation } from '@/types/conversation';
 import type { EngineSelection } from '@/types/engine';
 import { versionsUsed } from '@/utils/conversation';

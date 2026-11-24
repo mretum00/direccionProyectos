@@ -52,6 +52,18 @@ def _get_float(name: str, default: float) -> float:
         raise ValueError(f"La variable de entorno {name} debe ser un número, recibido: {raw!r}") from exc
 
 
+def _get_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None or not raw.strip():
+        return default
+    valor = raw.strip().lower()
+    if valor in {"1", "true", "yes", "on", "si", "sí"}:
+        return True
+    if valor in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"La variable de entorno {name} debe ser booleana (true/false), recibido: {raw!r}")
+
+
 def _get_list(name: str, default: str) -> list[str]:
     return [item.strip() for item in _get_str(name, default).split(",") if item.strip()]
 
@@ -92,12 +104,22 @@ class Settings:
     rag_evidence_min_score: float
     rag_evidence_high_score: float
     rag_code_match_bonus: float
+    rag_hybrid_retrieval_enabled: bool
+    rag_rrf_k: int
+    rag_component_anchor_enabled: bool
+    rag_ambiguity_detection_enabled: bool
+    rag_claim_verification_enabled: bool
+    rag_evidence_sufficiency_enabled: bool
     rag_chunk_size: int
     rag_chunk_overlap: int
     source_excerpt_chars: int
 
 
 def load_settings() -> Settings:
+    rrf_k = _get_int("RAG_RRF_K", 60)
+    if rrf_k < 1:
+        raise ValueError("La variable RAG_RRF_K debe ser un entero mayor que cero")
+
     return Settings(
         api_host=_get_str("API_HOST", "127.0.0.1"),
         api_port=_get_int("API_PORT", 8000),
@@ -127,6 +149,17 @@ def load_settings() -> Settings:
         rag_evidence_high_score=_get_float("RAG_EVIDENCE_HIGH_SCORE", 0.5),
         # Extra de puntuación para los fragmentos que contienen el código de avería exacto de la consulta.
         rag_code_match_bonus=_get_float("RAG_CODE_MATCH_BONUS", 0.15),
+        # BM25 + RRF está desactivado por defecto hasta validar el benchmark en cada entorno.
+        rag_hybrid_retrieval_enabled=_get_bool("RAG_HYBRID_RETRIEVAL_ENABLED", False),
+        rag_rrf_k=rrf_k,
+        # Anclaje de secciones operativas en preguntas sobre componentes CMP.
+        rag_component_anchor_enabled=_get_bool("RAG_COMPONENT_ANCHOR_ENABLED", False),
+        # Detección determinista de preguntas técnicas ambiguas (R06).
+        rag_ambiguity_detection_enabled=_get_bool("RAG_AMBIGUITY_DETECTION_ENABLED", False),
+        # Segunda pasada LLM que revisa afirmaciones frente a los fragmentos recuperados.
+        rag_claim_verification_enabled=_get_bool("RAG_CLAIM_VERIFICATION_ENABLED", True),
+        # R07: exige verificar que los fragmentos cubren los datos solicitados antes de generar.
+        rag_evidence_sufficiency_enabled=_get_bool("RAG_EVIDENCE_SUFFICIENCY_ENABLED", True),
         # El modelo de embeddings solo lee ~128 tokens (≈ 500 caracteres): con trozos de 800 se perdía el final de cada uno.
         rag_chunk_size=_get_int("RAG_CHUNK_SIZE", 600),
         rag_chunk_overlap=_get_int("RAG_CHUNK_OVERLAP", 120),
