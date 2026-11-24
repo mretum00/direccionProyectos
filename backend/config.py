@@ -130,7 +130,7 @@ def load_settings() -> Settings:
         # El modelo de embeddings solo lee ~128 tokens (≈ 500 caracteres): con trozos de 800 se perdía el final de cada uno.
         rag_chunk_size=_get_int("RAG_CHUNK_SIZE", 600),
         rag_chunk_overlap=_get_int("RAG_CHUNK_OVERLAP", 120),
-        source_excerpt_chars=_get_int("SOURCE_EXCERPT_CHARS", 200),
+        source_excerpt_chars=_get_int("SOURCE_EXCERPT_CHARS", 1000),
     )
 
 
