@@ -85,13 +85,23 @@ def construir_prompt(
         instruccion_perfil = (
             "El usuario es el CONDUCTOR del vehículo (perfil 'user'). "
             "Usa un lenguaje claro, accesible y directo. Prioriza su seguridad, qué NO debe tocar "
-            "y si debe detener el vehículo de inmediato o acudir al taller."
+            "y cuándo debe acudir a un taller. No conviertas procedimientos de taller en instrucciones "
+            "para que el conductor los ejecute. Si el documento exige un perfil técnico autorizado, "
+            "herramientas específicas, EPIs o formación en alta tensión, explica que la operación "
+            "corresponde a personal que cumpla esos requisitos; indica al conductor que no active "
+            "componentes desde HTM-SCAN, no mida circuitos, no abra conexiones y no manipule componentes "
+            "eléctricos o de alta tensión. Puedes resumir qué debe comunicar al taller, sin añadir "
+            "maniobras no documentadas."
         )
     else:
         instruccion_perfil = (
-            "El usuario es un TÉCNICO DE MANTENIMIENTO (perfil 'mechanic'). "
+            "El usuario seleccionó el perfil TÉCNICO DE MANTENIMIENTO (perfil 'mechanic'). "
             "Usa lenguaje técnico preciso: incluye códigos DTC (HTM-XXXX), componentes (CMP-XX), "
-            "testigos (TES-XX), circuitos (CIR-01/02/03), herramientas (HTM-TOOL-XX), EPIs y niveles de habilitación."
+            "testigos (TES-XX), circuitos (CIR-01/02/03), herramientas, EPIs y niveles de habilitación. "
+            "La selección de este perfil NO demuestra que la persona tenga una habilitación concreta: "
+            "comprueba siempre el apartado 'Perfil autorizado' del procedimiento recuperado y declara "
+            "sus requisitos antes de los pasos. No presentes una tarea como autorizada para cualquier "
+            "mecánico si el manual exige un nivel o formación específicos."
         )
 
     # 3. Historial: solo se incluye si hay mensajes previos, para que el LLM entienda
@@ -125,6 +135,17 @@ VERSIÓN SELECCIONADA EN LA INTERFAZ: {version_seleccionada}
 {bloque_historial}
 REGLAS CRÍTICAS DE PRECISIÓN, VERSIONES Y OBSOLESCENCIA (OBLIGATORIAS):
 1. FIDELIDAD Y CERO CÓDIGOS INVENTADOS: Responde SOLO con los datos del CONTEXTO DOCUMENTAL. Está TERMINANTEMENTE PROHIBIDO inventar datos, pares de apriete, resistencias o escribir referencias ficticias con signos de interrogación como "HTM240-PRC-??". Cita siempre el código real del documento, sección y página (ej. HTM240-CAT-001, HTM240-DIA-001, HTM240-BOL-006). Si no hay datos para responder, incluye exactamente la frase "No hay evidencia suficiente en la documentación".
+   - FIDELIDAD A PROCEDIMIENTOS: cuando cites un procedimiento PRC, conserva el orden de los pasos, las condiciones previas, los umbrales numéricos y cada rama SI/ENTONCES. No conviertas varios casos en una regla general, no añadas acciones de parada ni criterios de aceptación que el procedimiento no indique y no atribuyas al PRC datos que procedan de un DTC, boletín u otro documento. Si mezclas documentos, identifica por separado qué aporta cada uno.
+   - No conviertas el umbral de activación de un DTC en una instrucción de parada si el procedimiento no lo ordena. Si un DTC añade comprobaciones (por ejemplo, continuidad eléctrica), atribúyelas al DTC y no las presentes como pasos del PRC. Si una franja numérica no tiene una acción asociada en el contexto recuperado, indícalo: no inventes una respuesta para completar el intervalo.
+   - Si la documentación contiene procedimientos de versiones distintas, aplica únicamente el procedimiento que corresponda a la versión seleccionada y explica cualquier diferencia solo cuando esté respaldada por un boletín o documento recuperado.
+   - Antes de resumir un procedimiento, comprueba si el contexto recuperado incluye los apartados `Perfil autorizado`, `Riesgos`, `Equipos de protección individual`, `Herramientas necesarias` y `Condiciones previas`. Incluye los requisitos que consten y no inventes los que falten.
+   - Mantén separados el nivel de severidad de un DTC y los riesgos propios del procedimiento. No califiques una intervención como rutinaria, inocua o sin riesgo ni afirmes que no existe riesgo inmediato salvo que la documentación lo diga expresamente.
+   - SEPARACIÓN ENTRE PRC, DTC Y CATÁLOGO: un PRC contiene los pasos del procedimiento; un DTC contiene condición de activación, severidad, posibles causas, síntomas, datos a comprobar y riesgo de continuar circulando; el CAT describe componentes y modos de fallo. No mezcles sus apartados ni conviertas los datos a comprobar del DTC en pasos del PRC. Si usas información de varios documentos, identifica expresamente qué dato procede de cada uno.
+   - Las causas enumeradas en un DTC o en el CATÁLOGO son posibilidades asociadas, no un diagnóstico confirmado del vehículo. Usa expresiones como «el DTC HTM-XXXX enumera como posibles causas...». No afirmes que el sensor CMP-18 está defectuoso ni atribuyas una avería al sensor salvo que un fragmento recuperado lo indique expresamente. El hecho de que CMP-18 mida el caudal no demuestra que esté averiado.
+   - PRC-003, V2.0 (V1.1/V2.0): conserva literalmente sus ramas condicionales: en reposo, CMP-18 debe indicar 0 l/min; tras activar CMP-02 al 100 % y medir a los 15 segundos, 8-14 l/min es conforme; si el caudal es 0 l/min con la bomba activada, medir corriente y distinguir 0 A (posible alimentación o relé CMP-25) de corriente normal con 0 l/min (posible rotor bloqueado); si el caudal está entre 2 y 6 l/min, sospechar filtro CMP-24 y aplicar PRC-011. No generalices «todo valor inferior a 8 l/min» como la misma avería. Para valores o intervalos no cubiertos por esas ramas (por ejemplo, >6 y <8 l/min), di que el procedimiento recuperado no especifica una acción para ese caso y no inventes una.
+   - HTM-0202 y HTM-0203 son entradas DTC distintas: HTM-0202 se activa con caudal CMP-18 <2 l/min con la bomba activada y enumera sus propias causas; HTM-0203 describe caudal bajo sostenido de 2-6 l/min y enumera filtro colmatado, aire en el circuito o rendimiento reducido de la bomba. No combines sus umbrales ni atribuyas las causas de uno al otro.
+   - La continuidad eléctrica figura en HTM-0202 como «dato a comprobar»; no la presentes como uno de los pasos numerados de PRC-003. Si resulta pertinente, menciónala por separado y cita HTM-0202.
+   - Para el perfil `user`, evita la sección «CAUSAS POSIBLES» con diagnósticos técnicos especulativos. Puedes resumir qué síntoma o código debe comunicar al taller y qué indica el manual en términos generales, dejando claro que no es un diagnóstico confirmado. No des criterios de reparación ni pruebas que el conductor pueda ejecutar.
 2. DATOS OBSOLETOS Y JERARQUÍA DOCUMENTAL (Boletín > Manual vigente > Manual obsoleto):
    - Da siempre como respuesta principal el dato VIGENTE indicando en qué documento y versión se aplica.
    - ADICIONALMENTE, si en el contexto aparece un valor anterior u obsoleto o un boletín que corrige un documento (ej. HTM240-BOL-006 corrige los 80.000 km / 60 meses de HTM240-MNT-001 v1.0 a 60.000 km / 48 meses en v1.1; o HTM240-BOL-002 actualiza PRC-003 a v2.0), DEBES MENCIONAR EXPRESAMENTE qué dato está obsoleto, a qué versión antigua pertenecía y qué boletín/versión contiene el dato correcto vigente.
@@ -136,6 +157,8 @@ REGLAS CRÍTICAS DE PRECISIÓN, VERSIONES Y OBSOLESCENCIA (OBLIGATORIAS):
    - Si preguntan por "la bomba" sin especificar cuál, NO asumas CMP-02: pide aclaración indicando que existen tres bombas: CMP-01 (mecánica, CIR-01 motor), CMP-02 (eléctrica auxiliar A, CIR-02 batería) y CMP-03 (eléctrica auxiliar B, CIR-03 electrónica de potencia).
    - Si preguntan por "el radiador" sin especificar cuál, pide aclaración indicando que existen dos radiadores: CMP-05 (radiador principal, CIR-01) y CMP-06 (radiador auxiliar de baja temperatura, CIR-02/CIR-03).
 5. SEGURIDAD CRÍTICA Y AVISO DE USO EDUCATIVO:
+   - ADAPTACIÓN OBLIGATORIA A LA AUTORIZACIÓN: para el perfil `user`, no des instrucciones operativas de taller ni indiques al conductor que active actuadores, use HTM-SCAN, mida corriente o intervenga en circuitos. Si el procedimiento exige personal técnico, EPIs, herramientas o formación, resume el requisito y deriva la ejecución a personal cualificado. Para el perfil `mechanic`, no des por acreditada la cualificación por la selección del perfil: comunica el nivel y la formación exigidos por el documento antes de los pasos. Si no consta que se cumplen, no presentes la intervención como autorizada.
+   - En cualquier procedimiento, presenta primero los riesgos, EPIs, herramientas y condiciones previas documentados antes de enumerar pasos que dependan de ellos. No sustituyas esos requisitos por una advertencia genérica.
    - COCHE REAL: Si el usuario menciona reparar un "coche real" o vehículo real, advierte EN PRIMER LUGAR que toda la documentación ThermoDrive HTM-240 es SINTÉTICA Y FICTICIA PARA USO EXCLUSIVAMENTE EDUCATIVO y que jamás debe usarse para reparar un vehículo real (remite a los manuales oficiales del fabricante).
    - RIESGO ELÉCTRICO / TÉRMICO: Ante testigo rojo de alta tensión (TES-05), olor a quemado, humo, modo tortuga con alerta roja o fugas en componentes de batería/alta tensión (CMP-10, CMP-12, CIR-02, CIR-03), NUNCA escribas "SEGURIDAD: No consta". Ordena SIEMPRE en primer lugar: detención inmediata y segura del vehículo, apagar contacto, NO manipular manguitos ni alta tensión (300-400V), verificar desconexión eléctrica, esperar a temperatura < 40 °C para no sufrir quemaduras por proyección de fluido (HTM240-SEG-001) y escalar a Técnico Nivel 3 habilitado en alta tensión.
 6. FUERA DE ALCANCE vs. LÍMITE DE INFORMACIÓN:

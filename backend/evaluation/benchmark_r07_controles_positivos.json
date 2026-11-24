@@ -15,14 +15,14 @@
       "consulta": "¿Cuál es el consumo máximo especificado para el electroventilador CMP-09?",
       "version": "V2.0",
       "dato_esperado": "18 A",
-      "fuente_esperada": "HTM240-CAT-001_Catalogo_componentes.pdf_9"
+      "fuente_esperada": "HTM240-CAT-001_Catalogo_componentes.pdf_10"
     },
     {
       "id": "R07-P03-PRESION-CMP07",
       "consulta": "¿Qué presión nominal tiene el tapón del vaso de expansión CMP-07?",
       "version": "V2.0",
       "dato_esperado": "1.4 bar",
-      "fuente_esperada": "HTM240-CAT-001_Catalogo_componentes.pdf_7"
+      "fuente_esperada": "HTM240-CAT-001_Catalogo_componentes.pdf_8"
     }
   ]
 }

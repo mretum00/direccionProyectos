@@ -89,7 +89,7 @@ def evaluar_alertas_seguridad(
     - uso/ reparación de un coche o vehículo real;
     - TES-05, humo, olor a quemado, alerta roja en modo tortuga, alta tensión o
       fugas en batería/componentes/circuitos de alta tensión;
-    - HTM-0101 y expresiones directas de sobretemperatura del motor.
+    - HTM-0101, expresiones directas de sobretemperatura y TES-01 rojo parpadeante.
 
     No clasifica el nivel de evidencia ni modifica la recuperación documental.
     """
@@ -159,7 +159,12 @@ def evaluar_alertas_seguridad(
         codigos.append("high_voltage")
 
     # HTM-0101 es el DTC de sobretemperatura que aparece en el catálogo del proyecto.
-    sobrecalentamiento = _contiene(
+    tes01_rojo_parpadeante = (
+        "tes 01" in texto
+        and "rojo" in texto
+        and _contiene(texto, ("parpadea", "parpadeando", "parpadeante"))
+    )
+    sobrecalentamiento = tes01_rojo_parpadeante or _contiene(
         texto,
         (
             "htm 0101",

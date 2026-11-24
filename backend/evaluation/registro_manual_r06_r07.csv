@@ -1,6 +1,7 @@
 ﻿id,requisito,tipo,consulta,version,accion_esperada,accion_observada,aclaracion_o_abstencion_correcta,fuentes_coherentes,resultado_PASS_FAIL,notas
 R06-01-BOMBA-CAUDAL,R06,ambiguous,¿Qué caudal nominal tiene la bomba?,V2.0,clarify,,,,,
 R06-02-BOMBA-AUXILIAR,R06,ambiguous,¿Cómo compruebo la bomba auxiliar?,V2.0,clarify,,,,,
+R06-09-BOMBA-GENERICA-PROCEDIMIENTO,R06,ambiguous,¿Cómo reviso la bomba?,V2.0,clarify,,,,,"Nuevo caso R06 v1.1: debe distinguir CMP-01, CMP-02 y CMP-03 antes de recuperar."
 R06-03-SENSOR-TEMPERATURA,R06,ambiguous,¿Cómo verifico el sensor de temperatura?,V2.0,clarify,,,,,
 R06-04-TEMPERATURA-SISTEMA,R06,ambiguous,La temperatura del sistema está fuera de rango. ¿Qué debería revisar?,V2.0,clarify,,,,,
 R06-05-HTM0142-SIN-VERSION,R06,ambiguous,¿Qué significa el código HTM-0142?,,clarify,,,,,

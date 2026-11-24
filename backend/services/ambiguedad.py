@@ -35,6 +35,17 @@ _INTENCION_PROCEDIMIENTO = (
     "comprobar el funcionamiento",
 )
 
+# Atributos que cambian entre CMP-01, CMP-02 y CMP-03. Si se pregunta por uno
+# de ellos usando "la bomba" en singular, hay que identificar primero el componente.
+_INTENCION_DATO_BOMBA = (
+    "caudal",
+    "corriente",
+    "consumo",
+    "amperaje",
+    "tension",
+    "voltaje",
+)
+
 
 def normalizar(texto: str) -> str:
     """Pasa a minúsculas, elimina tildes y unifica espacios."""
@@ -91,7 +102,40 @@ def _resolver_seleccion_aclaracion(mensaje: str, historial: list[dict]) -> str |
     codigos_cir = {f"CIR-0{numero}" for numero in _PATRON_CIR.findall(respuesta_original)}
     codigos_tes = {f"TES-{numero}" for numero in _PATRON_TES.findall(respuesta_original)}
 
-    # Aclaración de bomba auxiliar A/B.
+    # Aclaración de las tres bombas cuando la pregunta original solo dice «la bomba».
+    # Se comprueba antes de la variante A/B porque la aclaración de tres opciones
+    # también contiene CMP-02 y CMP-03.
+    es_aclaracion_tres_bombas = all(
+        f"cmp {numero:02d}" in ultima_aclaracion for numero in (1, 2, 3)
+    )
+    if es_aclaracion_tres_bombas:
+        seleccion_01 = (
+            "CMP-01" in codigos_cmp
+            or "CIR-01" in codigos_cir
+            or _contiene_alguno(respuesta, ("mecanica", "bomba del motor", "bomba de motor"))
+        )
+        seleccion_02 = (
+            "CMP-02" in codigos_cmp
+            or "CIR-02" in codigos_cir
+            or bool(re.search(r"\bbomba(?: auxiliar)? a\b", respuesta))
+            or _contiene_alguno(respuesta, ("bateria", "circuito de bateria"))
+        )
+        seleccion_03 = (
+            "CMP-03" in codigos_cmp
+            or "CIR-03" in codigos_cir
+            or bool(re.search(r"\bbomba(?: auxiliar)? b\b", respuesta))
+            or _contiene_alguno(respuesta, ("electronica de potencia", "circuito de electronica"))
+        )
+        selecciones = [seleccion_01, seleccion_02, seleccion_03]
+        if sum(selecciones) != 1:
+            return None
+        if seleccion_01:
+            return "bomba mecánica CMP-01, del circuito térmico del motor CIR-01"
+        if seleccion_02:
+            return "bomba auxiliar A CMP-02, del circuito de batería CIR-02"
+        return "bomba auxiliar B CMP-03, del circuito de electrónica de potencia CIR-03"
+
+    # Aclaración de bomba auxiliar A/B (la bomba mecánica no es una auxiliar).
     es_aclaracion_bomba_ab = (
         ("cmp 02" in ultima_aclaracion and "cmp 03" in ultima_aclaracion)
         or "bomba auxiliar a o b" in ultima_aclaracion
@@ -138,14 +182,35 @@ def _resolver_seleccion_aclaracion(mensaje: str, historial: list[dict]) -> str |
             return "circuito de electrónica de potencia CIR-03"
         return None
 
-    # Aclaración de testigo rojo: exigimos un código inequívoco para no inferirlo
-    # únicamente por el color o por una descripción subjetiva.
-    if "tes 01" in ultima_aclaracion and "tes 05" in ultima_aclaracion:
-        if "TES-01" in codigos_tes:
-            return "testigo TES-01 rojo parpadeante"
-        if "TES-05" in codigos_tes:
-            return "testigo TES-05 de alta tensión"
-        return None
+    # Aclaración de testigos: TES-01 y TES-02 pueden mostrarse en amarillo fijo
+    # o rojo parpadeante. TES-05, en cambio, siempre exige detención segura y
+    # asistencia de personal habilitado. No basta con recibir solo TES-01/TES-02:
+    # también necesitamos el estado del testigo para no inferir su urgencia.
+    aclaracion_testigos = all(
+        f"tes {numero:02d}" in ultima_aclaracion for numero in (1, 2, 5)
+    )
+    if aclaracion_testigos:
+        testigos_seleccionados = codigos_tes.intersection({"TES-01", "TES-02", "TES-05"})
+        if len(testigos_seleccionados) != 1:
+            return None
+
+        testigo = next(iter(testigos_seleccionados))
+        if testigo == "TES-05":
+            return "testigo TES-05 de alta tensión; requiere detención segura y personal habilitado"
+
+        rojo_parpadeante = "rojo" in respuesta and _contiene_alguno(
+            respuesta, ("parpadea", "parpadeando", "parpadeante")
+        )
+        amarillo_fijo = "amarillo" in respuesta and _contiene_alguno(
+            respuesta, ("fijo", "fija", "sin parpadear")
+        )
+        if rojo_parpadeante == amarillo_fijo:
+            return None
+
+        estado = "rojo parpadeante" if rojo_parpadeante else "amarillo fijo"
+        if testigo == "TES-01":
+            return f"testigo TES-01 de temperatura de motor, {estado}"
+        return f"testigo TES-02 de temperatura de batería de alta tensión, {estado}"
 
     # Calefacción: conservar el síntoma concreto indicado por el usuario.
     if "calefaccion" in ultima_aclaracion or "calentador ptc" in ultima_aclaracion:
@@ -207,15 +272,16 @@ def detectar_aclaracion_tecnica(mensaje: str) -> dict[str, str] | None:
     """Devuelve una aclaración concreta o None si la consulta puede continuar.
 
     Casos cubiertos:
-    - procedimiento de bomba auxiliar sin identificar A/B;
+    - procedimiento de bomba sin identificar CMP-01/CMP-02/CMP-03, o bomba auxiliar sin identificar A/B;
     - verificación de sensor de temperatura sin identificar sensor/circuito;
     - anomalía de temperatura sin identificar circuito;
     - testigo rojo sin código TES;
     - calefacción averiada con petición de sustitución sin diagnóstico;
     - mantenimiento genérico sin elemento o intervención.
 
-    Una pregunta factual general como «¿Qué caudal nominal tiene la bomba?» no
-    activa el detector: puede responderse comparando los valores de las bombas.
+    Una consulta sobre un atributo de una bomba singular también requiere aclaración
+    cuando el usuario no identifica CMP-01, CMP-02 o CMP-03. Si pide comparar las
+    bombas o pregunta explícitamente por todas, puede responderse con los valores de cada una.
     """
     original = (mensaje or "").strip()
     texto = normalizar(original)
@@ -226,24 +292,55 @@ def detectar_aclaracion_tecnica(mensaje: str) -> dict[str, str] | None:
     tiene_tes = _tiene_codigo(_PATRON_TES, original)
     tiene_circuito = _tiene_circuito(original)
 
-    # 1. Bomba auxiliar: solo aclarar cuando se pide un procedimiento y no se
-    # identifica la bomba A/B, el componente CMP o el circuito.
+    # 1. Bombas: distinguir entre una bomba auxiliar genérica (A/B) y una
+    # referencia genérica a «la bomba» (CMP-01/CMP-02/CMP-03).
+    es_bomba = bool(re.search(r"\bbombas?\b", texto))
     es_bomba_auxiliar = "bomba auxiliar" in texto or "bombas auxiliares" in texto
     pide_procedimiento = _contiene_alguno(texto, _INTENCION_PROCEDIMIENTO)
-    identifica_bomba = (
-        tiene_cmp
-        or tiene_circuito
+    pide_dato_bomba_singular = (
+        _contiene_alguno(texto, _INTENCION_DATO_BOMBA)
+        and bool(re.search(r"\bbomba\b", texto))
+        and not bool(re.search(r"\bbombas\b", texto))
+    )
+    pide_aclaracion_bomba = pide_procedimiento or pide_dato_bomba_singular
+
+    codigos_cmp_detectados = {int(numero) for numero in _PATRON_CMP.findall(original)}
+    codigos_cir_detectados = {int(numero) for numero in _PATRON_CIR.findall(original)}
+    identifica_bomba_auxiliar = (
+        bool(codigos_cmp_detectados.intersection({2, 3}))
+        or bool(codigos_cir_detectados.intersection({2, 3}))
         or bool(re.search(r"\bbomba\s+auxiliar\s+[ab]\b", texto))
         or _contiene_alguno(texto, ("circuito de bateria", "circuito bateria",
                                     "electronica de potencia", "circuito de electronica"))
     )
-    if es_bomba_auxiliar and pide_procedimiento and not identifica_bomba:
+    identifica_bomba_concreta = (
+        bool(codigos_cmp_detectados.intersection({1, 2, 3}))
+        or bool(codigos_cir_detectados)
+        or _contiene_alguno(texto, (
+            "bomba mecanica", "bomba del motor", "bomba de motor",
+            "bomba de bateria", "bomba del inversor",
+            "bomba de electronica de potencia", "bomba del circuito de bateria",
+            "bomba del circuito de electronica de potencia",
+        ))
+    )
+
+    if es_bomba_auxiliar and pide_aclaracion_bomba and not identifica_bomba_auxiliar:
         return {
             "code": "pump_variant",
             "message": (
                 "¿A cuál te refieres: a la bomba auxiliar A (CMP-02), que trabaja en "
                 "el circuito de batería CIR-02, o a la bomba auxiliar B (CMP-03), "
                 "del circuito de electrónica de potencia CIR-03?"
+            ),
+        }
+
+    if es_bomba and pide_aclaracion_bomba and not es_bomba_auxiliar and not identifica_bomba_concreta:
+        return {
+            "code": "pump_variant",
+            "message": (
+                "¿A cuál bomba te refieres: CMP-01 (bomba mecánica del circuito del motor, "
+                "CIR-01), CMP-02 (bomba auxiliar A del circuito de batería, CIR-02) "
+                "o CMP-03 (bomba auxiliar B del circuito de electrónica de potencia, CIR-03)?"
             ),
         }
 
@@ -300,11 +397,13 @@ def detectar_aclaracion_tecnica(mensaje: str) -> dict[str, str] | None:
             "code": "red_indicator",
             "message": (
                 "Necesito identificar el testigo antes de indicarte qué hacer. "
-                "¿Puedes decirme su código (por ejemplo, TES-01 o TES-05) o describir "
-                "el símbolo? Como precaución, si el testigo está encendido ahora, "
-                "detente en un lugar seguro y consulta el manual antes de continuar. "
-                "Si corresponde a TES-01 rojo parpadeante o TES-05, la documentación "
-                "indica detención segura y asistencia de personal cualificado."
+                "¿Qué código aparece: TES-01 (temperatura del motor), TES-02 "
+                "(temperatura de la batería) o TES-05 (alta tensión/aislamiento)? "
+                "Si es TES-01 o TES-02, indica también si está amarillo fijo o rojo "
+                "parpadeante. Como precaución, si el testigo está rojo, detente en "
+                "un lugar seguro antes de continuar. TES-01 rojo parpadeante exige "
+                "detención inmediata; TES-05 siempre exige detención segura y "
+                "contacto con personal habilitado en alta tensión."
             ),
         }
 
@@ -321,9 +420,11 @@ def detectar_aclaracion_tecnica(mensaje: str) -> dict[str, str] | None:
         return {
             "code": "heating_diagnosis",
             "message": (
-                "Antes de recomendar sustituir un componente necesito concretar el fallo. "
-                "¿La calefacción no produce calor, calienta poco o tarda demasiado en "
-                "calentar, y aparece algún testigo o código de avería?"
+                "No debo recomendar la sustitución de una pieza solo por el síntoma. "
+                "Para orientar el diagnóstico 4.6 de calefacción insuficiente, dime: "
+                "¿ocurre solo con frío extremo o también con temperaturas moderadas? "
+                "¿El problema es reciente o ha empeorado progresivamente? Indica "
+                "también si aparece algún testigo o código de avería."
             ),
         }
 
@@ -343,7 +444,9 @@ def detectar_aclaracion_tecnica(mensaje: str) -> dict[str, str] | None:
             "code": "maintenance_target",
             "message": (
                 "¿De qué elemento o intervención necesitas conocer el intervalo de "
-                "mantenimiento: refrigerante, filtro, bomba, batería u otra operación?"
+                "mantenimiento: refrigerante, filtro del circuito de batería CMP-24, "
+                "bomba auxiliar A/B o electroventilador CMP-09? También puedes indicar "
+                "otra operación concreta."
             ),
         }
 
