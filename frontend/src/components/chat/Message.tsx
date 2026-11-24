@@ -230,9 +230,15 @@ function ClaimVerificationPanel({
 
   const reviewed = verification.status === 'reviewed';
   const unavailable = verification.status === 'unavailable';
+  const restricted = verification.answer_restricted === true;
+  const blocked = restricted && verification.claims_supported === 0;
   const summary = unavailable
     ? 'No se pudo completar la revisión automática.'
-    : `${verification.claims_supported} de ${verification.claims_total} afirmaciones tienen un extracto localizado que el revisor considera compatible.`;
+    : blocked
+      ? 'No se ha mostrado la respuesta técnica generada porque ninguna afirmación obtuvo una cita literal validada en los fragmentos recuperados.'
+      : restricted
+        ? 'La respuesta se ha limitado a las afirmaciones con una cita literal validada. Las demás se han omitido para evitar presentar datos no confirmados.'
+        : `${verification.claims_supported} de ${verification.claims_total} afirmaciones tienen un extracto localizado que el revisor considera compatible.`;
 
   const statusLabels: Record<ClaimCheck['status'], string> = {
     supported: 'Respaldo localizado',
@@ -271,7 +277,7 @@ function ClaimVerificationPanel({
           Revisión automática de afirmaciones
         </h3>
         <span className={`ml-auto text-[10px] px-2 py-1 rounded-full border ${reviewed ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20' : 'text-amber-300 bg-amber-500/10 border-amber-500/20'}`}>
-          {reviewed ? 'Respaldo localizado' : unavailable ? 'No disponible' : 'Requiere revisión'}
+          {reviewed ? 'Respaldo localizado' : unavailable ? 'No disponible' : blocked ? 'Respuesta bloqueada' : restricted ? 'Respuesta limitada' : 'Requiere revisión'}
         </span>
       </div>
 

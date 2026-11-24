@@ -59,6 +59,8 @@ export interface ClaimVerification {
   claims_total: number;
   claims_supported: number;
   claims: ClaimCheck[];
+  /** Indica que el backend limitó el texto a afirmaciones con cita literal validada. */
+  answer_restricted?: boolean;
 }
 
 export type RequestedEvidenceStatus = 'supported' | 'not_found' | 'uncertain' | 'conflicting';
@@ -85,7 +87,7 @@ export interface Source {
   engine_version?: string;
   excerpt?: string;
   /** Citada explícitamente por el modelo o solo recuperada como contexto. */
-  citation_status?: 'cited' | 'retrieved';
+  citation_status?: 'cited' | 'verified' | 'retrieved';
 }
 
 /** Fragmento recuperado durante la búsqueda y si se usó en la respuesta. */

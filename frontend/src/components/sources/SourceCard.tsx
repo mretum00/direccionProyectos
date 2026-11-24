@@ -29,15 +29,23 @@ export function SourceCard({ source, onView }: SourceCardProps) {
             <span className={`text-[11px] px-1.5 py-0.5 rounded ${color} flex-shrink-0`}>{label}</span>
             <span
               className={`text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ${
-                source.citation_status === 'cited'
-                  ? 'bg-marca-500/10 text-marca-300'
-                  : 'bg-contraste/10 text-texto-500'
+                source.citation_status === 'verified'
+                  ? 'bg-emerald-500/10 text-emerald-300'
+                  : source.citation_status === 'cited'
+                    ? 'bg-marca-500/10 text-marca-300'
+                    : 'bg-contraste/10 text-texto-500'
               }`}
-              title={source.citation_status === 'cited'
-                ? 'El modelo la ha incluido en su sección FUENTE'
-                : 'Fragmento recuperado y entregado al modelo, pero no citado expresamente'}
+              title={source.citation_status === 'verified'
+                ? 'La afirmación asociada tiene una cita literal localizada y validada por el backend'
+                : source.citation_status === 'cited'
+                  ? 'El modelo la ha incluido en su sección FUENTE; esa declaración no valida por sí sola la afirmación'
+                  : 'Fragmento recuperado y entregado al modelo, pero no citado como respaldo'}
             >
-              {source.citation_status === 'cited' ? 'Citada por el modelo' : 'Recuperada'}
+              {source.citation_status === 'verified'
+                ? 'Cita comprobada'
+                : source.citation_status === 'cited'
+                  ? 'Citada por el modelo'
+                  : 'Recuperada'}
             </span>
           </div>
           <div className="flex items-center gap-2 flex-wrap text-[11px] text-texto-500">

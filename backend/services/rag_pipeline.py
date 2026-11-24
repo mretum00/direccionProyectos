@@ -60,6 +60,8 @@ from .respuestas import (
     extraer_referencias_citadas,
     pedir_aclaracion,
     respuesta_sin_evidencia,
+    respuesta_limitada_por_verificacion,
+    normalizar_intervalos_caudal,
 )
 from .retrieval import anadir_notas_de_alcance, buscar_fragmentos
 from .safety import evaluar_alertas_seguridad
@@ -340,6 +342,7 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
     # determinista junto con las alertas; así el aviso no desaparece por un error de Groq.
     try:
         texto_respuesta = generar_respuesta(prompt_final)
+        texto_respuesta = normalizar_intervalos_caudal(texto_respuesta)
     except Exception:
         if not alertas_seguridad:
             raise
@@ -385,18 +388,10 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
     else:
         evidencia = "medium"
 
-    # 7. Identificar las referencias que el modelo declaró en ### FUENTE.
-    # Solo se aceptan marcadores [F1]...[Fn] correspondientes a fragmentos del prompt.
-    referencias_citadas = extraer_referencias_citadas(texto_respuesta, len(fragmentos_contexto))
-    fuentes = construir_fuentes(fragmentos_contexto, version_canonica, referencias_citadas)
-    ids_citados = {fuente["id"] for fuente in fuentes if fuente.get("citation_status") == "cited"}
-    pasos.append(paso_busqueda(version_canonica, fragmentos, ids_citados))
-    cobertura_paso = paso_cobertura(suficiencia)
-    if cobertura_paso is not None:
-        pasos.append(cobertura_paso)
-
-    # Segunda pasada opcional: revisa afirmaciones frente a los fragmentos que recibió el modelo.
-    # Si el verificador falla, la respuesta original se conserva y se marca la revisión como no disponible.
+    # 7. Segunda pasada opcional: revisa afirmaciones frente a los fragmentos que recibió el modelo.
+    # Si hay afirmaciones sin respaldo, la respuesta se limita de forma determinista a las
+    # que tengan una cita literal validada. Si el verificador falla, se conserva la respuesta
+    # original y se marca la revisión como no disponible: no se inventa una corrección.
     claim_verification = resultado_verificacion_no_ejecutada()
     if getattr(settings, "rag_claim_verification_enabled", False) and evidencia != "insufficient":
         try:
@@ -404,6 +399,34 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
         except Exception:
             logger.exception("No se pudo completar la verificación de afirmaciones; se conserva la respuesta RAG")
             claim_verification = resultado_verificacion_no_disponible()
+
+    referencias_citadas = extraer_referencias_citadas(texto_respuesta, len(fragmentos_contexto))
+    if claim_verification.get("status") == "needs_review":
+        texto_respuesta, referencias_citadas = respuesta_limitada_por_verificacion(
+            claim_verification,
+            fragmentos_contexto,
+        )
+        claim_verification["answer_restricted"] = True
+        # Si no queda ninguna afirmación respaldada, la respuesta final se considera insuficiente.
+        if not referencias_citadas:
+            evidencia = "insufficient"
+        else:
+            evidencia = "medium"
+
+    # Las fuentes y la traza se construyen después de la revisión para reflejar el texto final.
+    fuentes = construir_fuentes(fragmentos_contexto, version_canonica, referencias_citadas)
+    if claim_verification.get("answer_restricted"):
+        for indice, fuente in enumerate(fuentes, start=1):
+            if indice in referencias_citadas:
+                fuente["citation_status"] = "verified"
+    ids_citados = {
+        fuente["id"] for fuente in fuentes
+        if fuente.get("citation_status") in {"cited", "verified"}
+    }
+    pasos.append(paso_busqueda(version_canonica, fragmentos, ids_citados))
+    cobertura_paso = paso_cobertura(suficiencia)
+    if cobertura_paso is not None:
+        pasos.append(cobertura_paso)
 
     # Se mantiene el recuento de todos los documentos recuperados que recibió el modelo.
     documentos = {fuente["document"] for fuente in fuentes}
@@ -414,7 +437,7 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
         settings.rag_evidence_min_score,
         settings.rag_evidence_high_score,
         fuentes=len(ids_citados),
-        documentos=len({fuente["document"] for fuente in fuentes if fuente.get("citation_status") == "cited"}),
+        documentos=len({fuente["document"] for fuente in fuentes if fuente.get("citation_status") in {"cited", "verified"}}),
     ))
 
     return {

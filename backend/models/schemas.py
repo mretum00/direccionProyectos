@@ -75,8 +75,8 @@ class Source(BaseModel):
     page: int | None = None
     engine_version: str | None = None
     excerpt: str | None = None
-    # "cited": el modelo la declaró en ### FUENTE; "retrieved": solo se le entregó como contexto.
-    citation_status: Literal["cited", "retrieved"] = "retrieved"
+    # "cited": declarada por el modelo; "verified": cita literal validada por el backend; "retrieved": contexto.
+    citation_status: Literal["cited", "verified", "retrieved"] = "retrieved"
 
 
 class StepFragment(BaseModel):
@@ -144,6 +144,8 @@ class ClaimVerification(BaseModel):
     claims_total: int = 0
     claims_supported: int = 0
     claims: list[ClaimCheck] = Field(default_factory=list)
+    # True cuando el backend limitó el texto final a afirmaciones con cita literal validada.
+    answer_restricted: bool = False
 
 
 class RequestedEvidenceItem(BaseModel):
