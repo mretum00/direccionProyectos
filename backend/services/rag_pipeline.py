@@ -61,6 +61,7 @@ from .respuestas import (
     pedir_aclaracion,
     respuesta_sin_evidencia,
     respuesta_limitada_por_verificacion,
+    normalizar_intervalos_caudal,
 )
 from .retrieval import anadir_notas_de_alcance, buscar_fragmentos
 from .safety import evaluar_alertas_seguridad
@@ -341,6 +342,7 @@ def armar_respuesta(mensaje: str, version: str, perfil: str, historial: list[dic
     # determinista junto con las alertas; así el aviso no desaparece por un error de Groq.
     try:
         texto_respuesta = generar_respuesta(prompt_final)
+        texto_respuesta = normalizar_intervalos_caudal(texto_respuesta)
     except Exception:
         if not alertas_seguridad:
             raise

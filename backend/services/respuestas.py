@@ -164,6 +164,31 @@ def _normalizar_cita(texto: str) -> str:
 
     return " ".join(unicodedata.normalize("NFKC", texto).casefold().split())
 
+_PATRON_INTERVALO_CAUDAL = re.compile(
+    r"(?<![\w.,])(\d+(?:[.,]\d+)?)\s*(?:a|[-–—])"
+    r"\s*(\d+(?:[.,]\d+)?)\s*(l\s*/\s*min)\b",
+    re.IGNORECASE,
+)
+
+
+def normalizar_intervalos_caudal(texto: str) -> str:
+    """
+    Normaliza los intervalos de caudal expresados en l/min.
+
+    Ejemplos:
+        8a14l/min    -> 8-14 l/min
+        8 a 14 l/min -> 8-14 l/min
+        8–14l/min    -> 8-14 l/min
+
+    No modifica otros valores ni unidades.
+    """
+    return _PATRON_INTERVALO_CAUDAL.sub(
+        lambda coincidencia: (
+            f"{coincidencia.group(1)}-"
+            f"{coincidencia.group(2)} l/min"
+        ),
+        texto,
+    )
 
 def respuesta_limitada_por_verificacion(
     verificacion: dict,

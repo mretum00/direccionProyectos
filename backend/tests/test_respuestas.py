@@ -5,6 +5,7 @@ from services.respuestas import (
     pedir_aclaracion,
     respuesta_limitada_por_verificacion,
     respuesta_sin_evidencia,
+    normalizar_intervalos_caudal,
 )
 
 
@@ -108,3 +109,34 @@ def test_respuesta_limitada_se_abstiene_si_no_hay_afirmaciones_respaldadas():
     assert "no se muestra la respuesta generada" in texto
     assert "8 bar" not in texto
     assert referencias == set()
+
+def test_normalizar_intervalo_caudal_sin_espacios():
+    texto = "El caudal nominal es de 8a14l/min."
+
+    resultado = normalizar_intervalos_caudal(texto)
+
+    assert resultado == "El caudal nominal es de 8-14 l/min."
+
+
+def test_normalizar_intervalo_caudal_con_preposicion():
+    texto = "El caudal nominal está entre 8 a 14 l/min."
+
+    resultado = normalizar_intervalos_caudal(texto)
+
+    assert resultado == "El caudal nominal está entre 8-14 l/min."
+
+
+def test_normalizar_intervalo_caudal_con_guion():
+    texto = "El caudal nominal es de 8–14l/min."
+
+    resultado = normalizar_intervalos_caudal(texto)
+
+    assert resultado == "El caudal nominal es de 8-14 l/min."
+
+
+def test_normalizar_intervalo_caudal_no_modifica_otros_datos():
+    texto = "La corriente nominal es de 3-6 A a 12V."
+
+    resultado = normalizar_intervalos_caudal(texto)
+
+    assert resultado == texto
