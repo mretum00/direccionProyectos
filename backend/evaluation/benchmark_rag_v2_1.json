@@ -1,0 +1,726 @@
+{
+  "nombre": "ThermoDrive HTM-240 - Benchmark de recuperación RAG v2.1",
+  "version": 2.1,
+  "descripcion": "Conjunto de 32 consultas con respuesta documental: conserva las 16 consultas del benchmark v1.1 y añade 16 casos sobre procedimientos PRC-004 a PRC-012, DTC, boletines, catálogo, esquemas, mantenimiento y diccionario. Las consultas R06/R07 se mantienen en un fichero de comportamiento separado porque no tienen etiquetas de documento/sección para Hit@k. La versión 2.1 añade cuatro consultas multi-componente con parejas y tríos CMP de distintas familias para validar la cobertura exacta de COMBINADA.",
+  "casos": [
+    {
+      "id": "DTC-0101",
+      "consulta": "El motor alcanza una temperatura excesiva después de circular un rato. ¿Qué significa el código HTM-0101 y qué datos debería revisar?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-DTC-001_Catalogo_DTC.pdf",
+          "secciones": [
+            "HTM-0101"
+          ]
+        },
+        {
+          "documento": "HTM240-DIA-001_Manual_diagnostico.pdf",
+          "secciones": [
+            "4.1 Sobrecalentamiento del motor"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "DTC-0102",
+      "consulta": "El sensor de temperatura del motor CMP-14 da una lectura fuera de rango. ¿Qué indica el código HTM-0102?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-DTC-001_Catalogo_DTC.pdf",
+          "secciones": [
+            "HTM-0102"
+          ]
+        },
+        {
+          "documento": "HTM240-PRC-007_Verificacion_de_sensores_de_temperatura.pdf",
+          "secciones": [
+            "Pasos",
+            "Valores esperados"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "PRC-001-NIVEL",
+      "consulta": "Quiero revisar el refrigerante antes de usar el vehículo. ¿Cómo puedo comprobar el nivel sin abrir el vaso de expansión cuando el motor aún está caliente?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-PRC-001_Inspeccion_del_nivel_de_refrigerante.pdf",
+          "secciones": [
+            "Riesgos",
+            "Condiciones previas",
+            "Pasos"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "PRC-002-PURGA",
+      "consulta": "Se ha abierto el circuito de refrigeración del motor y parece que queda aire dentro. ¿Cómo se realiza el purgado y qué indica que ha terminado correctamente?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-PRC-002_Purgado_del_circuito_termico_del_motor.pdf",
+          "secciones": [
+            "Pasos",
+            "Valores esperados",
+            "Criterios de aceptación"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "BOL-002-CORRIENTE-BOMBA",
+      "consulta": "En una prueba de la bomba auxiliar A CMP-02 a 12 voltios, ¿qué consumo de corriente se considera correcto para un vehículo V2.0?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-BOL-002.pdf",
+          "secciones": [
+            "Contenido"
+          ]
+        },
+        {
+          "documento": "HTM240-PRC-003_Verificacion_de_la_bomba_electrica_auxiliar_A_(circuito_de_bateria).pdf",
+          "secciones": [
+            "Valores esperados"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "BOL-001-INTERVALO-BOMBA",
+      "consulta": "Para un ThermoDrive V1.0, ¿cada cuánto hay que verificar el caudal de la bomba auxiliar A?",
+      "version": "V1.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-BOL-001.pdf",
+          "secciones": [
+            "Contenido"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "BOL-005-SENSOR-BATERIA",
+      "consulta": "¿Qué referencia lleva el sensor de temperatura de batería en V2.0 y qué precisión tiene?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-BOL-005.pdf",
+          "secciones": [
+            "Contenido"
+          ]
+        },
+        {
+          "documento": "HTM240-CAT-001_Catalogo_componentes.pdf",
+          "secciones": [
+            "CMP-15"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "BOL-006-REFRIGERANTE",
+      "consulta": "¿Cuál es el intervalo vigente para sustituir completamente el refrigerante del sistema?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-BOL-006.pdf",
+          "secciones": [
+            "Contenido"
+          ]
+        },
+        {
+          "documento": "HTM240-MNT-001_Plan_mantenimiento.pdf",
+          "secciones": [
+            "1. Inspecciones periódicas por intervalo"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "SEG-ALTA-TENSION",
+      "consulta": "Antes de intervenir en el circuito de batería CIR-02, ¿qué riesgos eléctricos debo tener en cuenta y qué habilitación necesita el técnico?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-SEG-001_Manual_seguridad.pdf",
+          "secciones": [
+            "2. Riesgos eléctricos",
+            "5. Alta tensión",
+            "7. Perfiles autorizados",
+            "8. Bloqueo y consignación (ficticios)"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "TES-05-ALTA-TENSION",
+      "consulta": "Se ha encendido el testigo rojo TES-05. ¿Qué significa y qué precaución debe tomarse?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-ADV-001_Testigos_y_mensajes.pdf",
+          "secciones": [
+            "1. Testigos del sistema ThermoDrive",
+            "4. Acciones inmediatas recomendadas por nivel de urgencia",
+            "3. Posibles combinaciones de testigos"
+          ]
+        },
+        {
+          "documento": "HTM240-SEG-001_Manual_seguridad.pdf",
+          "secciones": [
+            "5. Alta tensión"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "PRC-005-ELECTROVENTILADOR",
+      "consulta": "El electroventilador CMP-09 no parece responder a las órdenes de la unidad de control. ¿Cómo se comprueba su funcionamiento?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-PRC-005_Prueba_funcional_del_electroventilador.pdf",
+          "secciones": [
+            "Pasos",
+            "Valores esperados"
+          ]
+        },
+        {
+          "documento": "HTM240-DIA-001_Manual_diagnostico.pdf",
+          "secciones": [
+            "4.5 Electroventilador funcionando de forma continua"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "DIA-TESTIGOS-MULTIPLES",
+      "consulta": "Se han encendido tres o más testigos del sistema térmico al mismo tiempo. ¿Cómo debo abordar el diagnóstico inicial?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-DIA-001_Manual_diagnostico.pdf",
+          "secciones": [
+            "4.11 Activación simultánea de varios testigos"
+          ]
+        },
+        {
+          "documento": "HTM240-ADV-001_Testigos_y_mensajes.pdf",
+          "secciones": [
+            "3. Posibles combinaciones de testigos",
+            "4. Acciones inmediatas recomendadas por nivel de urgencia"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "PRC-003-FLUJO-BAJO",
+      "consulta": "La bomba auxiliar A funciona, pero el caudal del circuito de batería es bajo. ¿Qué comprobación permite detectar si el filtro está obstruido?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-PRC-003_Verificacion_de_la_bomba_electrica_auxiliar_A_(circuito_de_bateria).pdf",
+          "secciones": [
+            "Pasos",
+            "Acción si el resultado no es correcto"
+          ]
+        },
+        {
+          "documento": "HTM240-PRC-011_Sustitucion_del_filtro_del_circuito_de_bateria.pdf",
+          "secciones": [
+            "Pasos",
+            "Valores esperados"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "ESQ-ARQUITECTURA",
+      "consulta": "¿Cómo se organiza el sistema ThermoDrive en sus tres circuitos térmicos y qué papel tiene la TCU?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-ESQ-001_Esquemas_tecnicos.pdf",
+          "secciones": [
+            "1. Diagrama de arquitectura general",
+            "5. Relación entre sensores, actuadores y TCU"
+          ]
+        },
+        {
+          "documento": "HTM240-MAN-001_Manual_general.pdf",
+          "secciones": [
+            "1. Objetivo del sistema",
+            "2. Arquitectura funcional",
+            "7. Interacción con la Unidad de Control Térmico"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "PRC-007-SENSOR-TEMPERATURA",
+      "consulta": "¿Cómo se comprueba si un sensor de temperatura informa un valor incorrecto respecto a la temperatura real?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-PRC-007_Verificacion_de_sensores_de_temperatura.pdf",
+          "secciones": [
+            "Pasos",
+            "Valores esperados"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "OPE-MODO-PROTECCION",
+      "consulta": "El vehículo ha perdido potencia y limita la aceleración por protección térmica. ¿Qué significa ese modo y cuándo se desactiva?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-OPE-001_Manual_operacion.pdf",
+          "secciones": [
+            "3. Modos de funcionamiento",
+            "8. Condiciones de funcionamiento degradado"
+          ]
+        },
+        {
+          "documento": "HTM240-DIA-001_Manual_diagnostico.pdf",
+          "secciones": [
+            "4.12 Rendimiento reducido del vehículo"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "PRC-004-VALIDACION-CIR02",
+      "consulta": "Tras sustituir un componente del circuito de batería CIR-02, ¿qué prueba funcional confirma que el circuito vuelve a estar conforme y qué valores deben registrarse?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-PRC-004_Verificacion_de_la_bomba_de_circuito_de_bateria_tras_sustitucion.pdf",
+          "secciones": [
+            "Pasos",
+            "Valores esperados",
+            "Criterios de aceptación"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "PRC-006-VALVULA-CMP04",
+      "consulta": "¿Cómo se comprueba que la válvula distribuidora CMP-04 alcanza las posiciones del 0 %, 50 % y 100 % y qué tolerancia debe respetar?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-PRC-006_Comprobacion_de_la_valvula_distribuidora_de_cuatro_vias.pdf",
+          "secciones": [
+            "Pasos",
+            "Valores esperados",
+            "Criterios de aceptación"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "PRC-008-LOCALIZAR-FUGA",
+      "consulta": "Hay una pérdida de refrigerante, pero no se ve a simple vista. ¿Cómo se localiza el origen utilizando HTM-TRACE y una linterna ultravioleta?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-PRC-008_Inspeccion_de_fugas_en_los_circuitos_termicos.pdf",
+          "secciones": [
+            "Pasos",
+            "Valores esperados",
+            "Criterios de aceptación"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "PRC-009-PRESION-CIR01",
+      "consulta": "¿Cómo se realiza la prueba de estanqueidad del circuito motor CIR-01 con HTM-TOOL-07 y qué caída de presión se considera aceptable?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-PRC-009_Comprobacion_de_presion_del_circuito_motor.pdf",
+          "secciones": [
+            "Pasos",
+            "Valores esperados",
+            "Criterios de aceptación"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "PRC-010-COMUNICACION-CAN",
+      "consulta": "¿Cómo se verifica con HTM-SCAN que la TCU se comunica correctamente por CAN y qué tasa de error de trama se considera conforme?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-PRC-010_Verificacion_de_la_comunicacion_CAN_de_la_TCU.pdf",
+          "secciones": [
+            "Pasos",
+            "Valores esperados",
+            "Criterios de aceptación"
+          ]
+        },
+        {
+          "documento": "HTM240-ESQ-001_Esquemas_tecnicos.pdf",
+          "secciones": [
+            "4. Comunicación entre unidades del vehículo"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "PRC-011-SUSTITUIR-FILTRO",
+      "consulta": "¿Qué pasos se siguen para sustituir el filtro CMP-24 del circuito de batería y cómo se verifica después que el caudal es correcto?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-PRC-011_Sustitucion_del_filtro_del_circuito_de_bateria.pdf",
+          "secciones": [
+            "Pasos",
+            "Valores esperados",
+            "Criterios de aceptación"
+          ]
+        },
+        {
+          "documento": "HTM240-PRC-003_Verificacion_de_la_bomba_electrica_auxiliar_A_(circuito_de_bateria).pdf",
+          "secciones": [
+            "Pasos",
+            "Valores esperados"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "PRC-012-PRUEBA-INTEGRAL",
+      "consulta": "Después de una intervención importante en varios circuitos, ¿cómo se realiza la prueba funcional completa del sistema ThermoDrive y qué condiciones permiten aceptarla?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-PRC-012_Prueba_funcional_completa_del_sistema_ThermoDrive.pdf",
+          "secciones": [
+            "Pasos",
+            "Valores esperados",
+            "Criterios de aceptación"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "DTC-0401-PERDIDA-CAN",
+      "consulta": "El resto de unidades del vehículo no recibe respuesta de la TCU por el bus CAN. ¿Qué indica HTM-0401 y qué comprobaciones recomienda?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-DTC-001_Catalogo_DTC.pdf",
+          "secciones": [
+            "HTM-0401"
+          ]
+        },
+        {
+          "documento": "HTM240-DIA-001_Manual_diagnostico.pdf",
+          "secciones": [
+            "4.10 Pérdida de comunicación con la TCU"
+          ]
+        },
+        {
+          "documento": "HTM240-PRC-010_Verificacion_de_la_comunicacion_CAN_de_la_TCU.pdf",
+          "secciones": [
+            "Pasos"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "DTC-0501-RELE-INTERMITENTE",
+      "consulta": "Las bombas auxiliares sufren cortes breves de alimentación que reaparecen con vibraciones. ¿Qué describe HTM-0501 y cómo se recomienda comprobar el relé CMP-25?",
+      "version": "V1.1",
+      "relevantes": [
+        {
+          "documento": "HTM240-DTC-001_Catalogo_DTC.pdf",
+          "secciones": [
+            "HTM-0501"
+          ]
+        },
+        {
+          "documento": "HTM240-BOL-004.pdf",
+          "secciones": [
+            "Contenido"
+          ]
+        },
+        {
+          "documento": "HTM240-DIA-001_Manual_diagnostico.pdf",
+          "secciones": [
+            "4.9 Fallo intermitente"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "BOL-003-CAMBIO-HTM0142",
+      "consulta": "¿Por qué cambia el significado del código HTM-0142 entre V1.0/V1.1 y V2.0, y qué dato debe comprobarse antes de diagnosticarlo?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-BOL-003.pdf",
+          "secciones": [
+            "Contenido"
+          ]
+        },
+        {
+          "documento": "HTM240-DTC-001_Catalogo_DTC.pdf",
+          "secciones": [
+            "HTM-0142"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "BOL-004-RELE-LOTES",
+      "consulta": "En unidades V1.0 o V1.1 con un relé CMP-25 fabricado antes de mayo de 2025, ¿qué fallo intermitente se conoce y bajo qué condición puede reproducirse?",
+      "version": "V1.1",
+      "relevantes": [
+        {
+          "documento": "HTM240-BOL-004.pdf",
+          "secciones": [
+            "Contenido"
+          ]
+        },
+        {
+          "documento": "HTM240-DTC-001_Catalogo_DTC.pdf",
+          "secciones": [
+            "HTM-0501"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "BOL-007-POTENCIA-PTC",
+      "consulta": "¿Por qué no debe aplicarse literalmente a vehículos con PTC de 3 kW el criterio de tiempo del árbol de calefacción insuficiente 4.6?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-BOL-007.pdf",
+          "secciones": [
+            "Contenido"
+          ]
+        },
+        {
+          "documento": "HTM240-DIA-001_Manual_diagnostico.pdf",
+          "secciones": [
+            "4.6 Calefacción insuficiente"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "CAT-CAUDALES-BOMBAS-AUX",
+      "consulta": "¿Qué caudal nominal y consumo de corriente se indican para las bombas CMP-02 y CMP-03, y a qué circuitos alimenta cada una?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-CAT-001_Catalogo_componentes.pdf",
+          "secciones": [
+            "CMP-02",
+            "CMP-03"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "ESQ-COMUNICACION-UNIDADES",
+      "consulta": "¿Cómo se relaciona la TCU con las demás unidades del vehículo y qué papel desempeña la comunicación CAN dentro del sistema?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-ESQ-001_Esquemas_tecnicos.pdf",
+          "secciones": [
+            "4. Comunicación entre unidades del vehículo",
+            "5. Relación entre sensores, actuadores y TCU"
+          ]
+        },
+        {
+          "documento": "HTM240-MAN-001_Manual_general.pdf",
+          "secciones": [
+            "7. Interacción con la Unidad de Control Térmico"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "MNT-INTERVALO-FILTRO",
+      "consulta": "¿Cada cuántos kilómetros o meses se sustituye preventivamente el filtro del circuito de batería CMP-24 y qué procedimiento se utiliza?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-MNT-001_Plan_mantenimiento.pdf",
+          "secciones": [
+            "1. Inspecciones periódicas por intervalo"
+          ]
+        },
+        {
+          "documento": "HTM240-PRC-011_Sustitucion_del_filtro_del_circuito_de_bateria.pdf",
+          "secciones": [
+            "Pasos"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "DIC-CAVITACION-BOMBA",
+      "consulta": "¿Qué significa cavitación dentro de una bomba y por qué puede reducir su rendimiento?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-DIC-001_Diccionario_tecnico.pdf",
+          "secciones": [
+            "Cavitación"
+          ]
+        },
+        {
+          "documento": "HTM240-CAT-001_Catalogo_componentes.pdf",
+          "secciones": [
+            "CMP-03"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "CAT-RADIADORES-CMP05-CMP06",
+      "consulta": "Compara el salto térmico nominal de CMP-05 y CMP-06 e indica qué circuitos refrigera cada radiador.",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-CAT-001_Catalogo_componentes.pdf",
+          "secciones": [
+            "CMP-05",
+            "CMP-06"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "CAT-SENSORES-CMP14-CMP15",
+      "consulta": "¿Qué rango de temperatura y precisión nominal tienen los sensores CMP-14 y CMP-15 y a qué circuitos corresponden?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-CAT-001_Catalogo_componentes.pdf",
+          "secciones": [
+            "CMP-14",
+            "CMP-15"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "CAT-BOMBAS-CMP01-CMP02-CMP03",
+      "consulta": "Compara el caudal nominal de las bombas CMP-01, CMP-02 y CMP-03 e indica qué circuito alimenta cada una.",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-CAT-001_Catalogo_componentes.pdf",
+          "secciones": [
+            "CMP-01",
+            "CMP-02",
+            "CMP-03"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    },
+    {
+      "id": "CAT-VALVULA-CMP04-CMP21",
+      "consulta": "¿Qué rango de posición nominal tiene la válvula CMP-04 y qué lectura proporciona el sensor de posición CMP-21?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-CAT-001_Catalogo_componentes.pdf",
+          "secciones": [
+            "CMP-04",
+            "CMP-21"
+          ]
+        }
+      ],
+      "requisito": "R03",
+      "comportamiento_esperado": "answer"
+    }
+  ]
+}

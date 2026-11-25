@@ -23,6 +23,7 @@ from db.repositories import RagChunkRepository
 from .embeddings import embedding_normalizado
 from .ranking_hibrido import ordenar_hibrido
 from .ranking_operativo import reordenar_con_anclaje
+from .ranking_combinado import seleccionar_combinada
 
 # Acceso a la tabla de fragmentos (rag_documents).
 rag_chunk_repository = RagChunkRepository()
@@ -276,6 +277,13 @@ def buscar_fragmentos(consulta_tecnica: str, version: str, top_k: int) -> list[d
     # no queden fuera por fragmentos introductorios. No altera puntuaciones.
     if getattr(settings, "rag_component_anchor_enabled", False):
         resultados, _ = reordenar_con_anclaje(consulta_tecnica, resultados)
+
+    # R03: reranking experimental COMBINADA. Se aplica sobre el ranking
+    # completo y antes del límite normal de dos fragmentos por documento.
+    # Las coincidencias CMP exactas pueden conservarse aunque varias fichas
+    # pertenezcan al mismo PDF. La opción está desactivada por defecto.
+    if getattr(settings, "rag_combined_reranking_enabled", False):
+        return seleccionar_combinada(consulta_tecnica, resultados, top_k)
 
     return _limitar_fragmentos_por_documento(resultados, top_k)
 

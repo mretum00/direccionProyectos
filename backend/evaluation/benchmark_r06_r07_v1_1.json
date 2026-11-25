@@ -2,13 +2,14 @@
   "nombre": "ThermoDrive HTM-240 - Benchmark de comportamiento R06/R07",
   "version": "1.1",
   "total_casos": 17,
-  "descripcion": "Nueve consultas ambiguas que deben provocar una aclaración (R06) y ocho consultas sin respuesta documental que deben provocar abstención sin invención (R07). Este conjunto no se pasa a evaluar_retrieval.py porque no contiene secciones objetivo Hit@k.",
+  "descripcion": "Nueve consultas ambiguas R06 y ocho consultas sin respuesta documental R07. Los casos R07 declaran el estado esperado de suficiencia para validar automáticamente la auditoría.",
   "notas_evaluacion": [
     "R06: aclarar solo lo necesario antes de contestar. Para las consultas con version vacía, pedir la versión del sistema.",
     "R07: reconocer qué dato no aparece en el corpus, no inventar una cifra o especificación y explicar la limitación.",
     "Los casos R06/R07 se deben ejecutar en la aplicación después de implementar la lógica correspondiente; el fichero registra el comportamiento esperado, no afirma que la versión actual ya lo cumpla.",
     "Los casos R07 usan V2.0 deliberadamente para no confundir una falta de versión con una falta de evidencia documental.",
-    "R06 v1.1: se incorpora la consulta procedimental «¿Cómo reviso la bomba?» para comprobar que se distinguen CMP-01, CMP-02 y CMP-03 antes de recuperar documentación."
+    "R06 v1.1: se incorpora la consulta procedimental «¿Cómo reviso la bomba?» para comprobar que se distinguen CMP-01, CMP-02 y CMP-03 antes de recuperar documentación.",
+    "R07 v1.2: cada caso negativo declara estado_suficiencia_esperado=insufficient; la auditoría compara el resultado real con ese estado."
   ],
   "casos": [
     {
@@ -149,7 +150,8 @@
       "dato_no_documentado": "El valor numérico del par de apriete. PRC-011 remite al valor especificado por el fabricante, pero no lo proporciona.",
       "referencias_de_contexto": [
         "HTM240-PRC-011_Sustitucion_del_filtro_del_circuito_de_bateria.pdf: Pasos"
-      ]
+      ],
+      "estado_suficiencia_esperado": "insufficient"
     },
     {
       "id": "R07-02-COMPOSICION-REFRIGERANTE",
@@ -162,7 +164,8 @@
       "referencias_de_contexto": [
         "HTM240-DIC-001_Diccionario_tecnico.pdf: El líquido refrigerante",
         "HTM240-SEG-001_Manual_seguridad.pdf: 4. Riesgo químico"
-      ]
+      ],
+      "estado_suficiencia_esperado": "insufficient"
     },
     {
       "id": "R07-03-CAPACIDAD-BATERIA",
@@ -175,7 +178,8 @@
       "referencias_de_contexto": [
         "HTM240-CAT-001_Catalogo_componentes.pdf: CMP-15",
         "HTM240-DIC-001_Diccionario_tecnico.pdf: Pack de batería"
-      ]
+      ],
+      "estado_suficiencia_esperado": "insufficient"
     },
     {
       "id": "R07-04-PINOUT-CMP26",
@@ -188,7 +192,8 @@
       "referencias_de_contexto": [
         "HTM240-CAT-001_Catalogo_componentes.pdf: CMP-26",
         "HTM240-PRC-010_Verificacion_de_la_comunicacion_CAN_de_la_TCU.pdf: Pasos"
-      ]
+      ],
+      "estado_suficiencia_esperado": "insufficient"
     },
     {
       "id": "R07-05-FUSIBLE-CMP09",
@@ -201,7 +206,8 @@
       "referencias_de_contexto": [
         "HTM240-PRC-005_Prueba_funcional_del_electroventilador.pdf: Pasos",
         "HTM240-CAT-001_Catalogo_componentes.pdf: CMP-09"
-      ]
+      ],
+      "estado_suficiencia_esperado": "insufficient"
     },
     {
       "id": "R07-06-GARANTIA-BATERIA",
@@ -214,7 +220,8 @@
       "referencias_de_contexto": [
         "HTM240-CAT-001_Catalogo_componentes.pdf: CMP-15",
         "HTM240-DIC-001_Diccionario_tecnico.pdf: Pack de batería"
-      ]
+      ],
+      "estado_suficiencia_esperado": "insufficient"
     },
     {
       "id": "R07-07-SERIAL-TCU",
@@ -227,7 +234,8 @@
       "referencias_de_contexto": [
         "HTM240-MAN-001_Manual_general.pdf: 7. Interacción con la Unidad de Control Térmico",
         "HTM240-CAT-001_Catalogo_componentes.pdf: CMP-13"
-      ]
+      ],
+      "estado_suficiencia_esperado": "insufficient"
     },
     {
       "id": "R07-08-AIRE-ACONDICIONADO",
@@ -239,7 +247,8 @@
       "dato_no_documentado": "El sistema ThermoDrive no cubre el circuito de aire acondicionado del habitáculo; el diccionario lo declara fuera del alcance del corpus.",
       "referencias_de_contexto": [
         "HTM240-DIC-001_Diccionario_tecnico.pdf: El aire acondicionado no enfría"
-      ]
+      ],
+      "estado_suficiencia_esperado": "insufficient"
     }
   ]
 }
