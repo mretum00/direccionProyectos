@@ -17,30 +17,69 @@ from uuid import uuid4
 
 from config import ENGINE_VERSIONS
 
-# Exige un prefijo explícito (V1.0 o "versión 1.0") para no confundir
+# Exige un prefijo explícito (V1.0, v.2 o "versión 1.0") para no confundir
 # decimales, tolerancias o valores técnicos con versiones del sistema.
 _PATRON_VERSION = re.compile(
     r"(?<![A-Z0-9])(?:"
-    r"V\s*(?P<major_v>\d{1,2})\s*[.,]\s*(?P<minor_v>\d{1,2})"
+    # Completa con prefijo V: "V1.0", "v 1,0", "v.2.0".
+    r"V(?:\.|\s*)(?P<major_v>\d{1,2})\s*[.,]\s*(?P<minor_v>\d{1,2})(?!\d)"
     r"|"
+    # Completa con la palabra versión: "versión 2.0", "versión del motor v1.1".
     r"VERSI[ÓO]N(?:\s+DEL\s+(?:MOTOR|SISTEMA|VEH[IÍ]CULO))?\s+"
-    r"(?:V\s*)?(?P<major_text>\d{1,2})\s*[.,]\s*(?P<minor_text>\d{1,2})"
-    r")(?!\d)",
+    r"(?:V\.?\s*)?(?P<major_text>\d{1,2})\s*[.,]\s*(?P<minor_text>\d{1,2})(?!\d)"
+    r"|"
+    # Solo la versión mayor, pegada a la V: "v2", "V.2". Sin espacio entre la V y el
+    # número para no tomar "12 V 3 veces" como una versión.
+    r"V\.?(?P<major_corta>\d{1,2})(?![0-9A-ZÁÉÍÓÚÑ])(?!\s*[.,]\s*\d)"
+    r"|"
+    # Solo la versión mayor con la palabra versión: "versión 2", "versión del motor 1".
+    r"VERSI[ÓO]N(?:\s+DEL\s+(?:MOTOR|SISTEMA|VEH[IÍ]CULO))?\s+"
+    r"(?:V\.?\s*)?(?P<major_texto_corta>\d{1,2})(?![0-9A-ZÁÉÍÓÚÑ])(?!\s*[.,]\s*\d)"
+    r")",
     re.IGNORECASE,
 )
 
+# Sufijo de una versión mayor que corresponde a varias versiones documentadas
+# (por ejemplo "v1" puede ser V1.0 o V1.1): "V1.x".
+_SUFIJO_FAMILIA = ".x"
 
-def extraer_versiones_mencionadas(texto: str) -> list[str]:
+
+def _resolver_version_mayor(major: int, versiones_soportadas: tuple[str, ...]) -> str:
+    """"v2" -> "V2.0" si es la única 2.x documentada; "v1" -> "V1.x" si hay varias."""
+    candidatas = [v for v in versiones_soportadas if v.upper().startswith(f"V{major}.")]
+    if len(candidatas) == 1:
+        return candidatas[0]
+    if candidatas:
+        return f"V{major}{_SUFIJO_FAMILIA}"
+    return f"V{major}"
+
+
+def _candidatas_familia(version: str, versiones_soportadas: tuple[str, ...]) -> list[str]:
+    """Versiones documentadas a las que puede referirse "V1.x"."""
+    prefijo = version[: -len(_SUFIJO_FAMILIA)] + "."
+    return [v for v in versiones_soportadas if v.upper().startswith(prefijo)]
+
+
+def extraer_versiones_mencionadas(
+    texto: str,
+    versiones_soportadas: tuple[str, ...] = ENGINE_VERSIONS,
+) -> list[str]:
     """Devuelve versiones explícitas y únicas, conservando el orden de aparición.
 
-    Acepta, por ejemplo, "V1.0", "v 1,0" y "versión 2.0". No interpreta
+    Acepta, por ejemplo, "V1.0", "v 1,0", "versión 2.0", "v2", "v.2" y
+    "versión 2". Una versión mayor sola se resuelve con las documentadas:
+    "v2" -> "V2.0"; "v1" -> "V1.x" (puede ser V1.0 o V1.1). No interpreta
     números decimales sin prefijo como versiones.
     """
     encontradas: list[str] = []
     for coincidencia in _PATRON_VERSION.finditer(texto or ""):
         major = coincidencia.group("major_v") or coincidencia.group("major_text")
         minor = coincidencia.group("minor_v") or coincidencia.group("minor_text")
-        version = f"V{int(major)}.{int(minor)}"
+        if major is not None:
+            version = f"V{int(major)}.{int(minor)}"
+        else:
+            major = coincidencia.group("major_corta") or coincidencia.group("major_texto_corta")
+            version = _resolver_version_mayor(int(major), versiones_soportadas)
         if version not in encontradas:
             encontradas.append(version)
     return encontradas
@@ -59,7 +98,16 @@ def detectar_incoherencia_version(
     - Dos o más versiones: bloquea la comparación porque el RAG actual consulta
       una única versión por turno.
     """
-    versiones = extraer_versiones_mencionadas(mensaje)
+    seleccionada = (version_seleccionada or "").strip().upper()
+    versiones: list[str] = []
+    for version in extraer_versiones_mencionadas(mensaje, versiones_soportadas):
+        # "v1" con V1.1 seleccionada es coherente: se refiere a la seleccionada.
+        if version.endswith(_SUFIJO_FAMILIA) and seleccionada in _candidatas_familia(
+            version, versiones_soportadas
+        ):
+            version = seleccionada
+        if version not in versiones:
+            versiones.append(version)
     if not versiones:
         return None
 
@@ -79,11 +127,17 @@ def detectar_incoherencia_version(
         }
 
     mencionada = versiones[0]
-    seleccionada = (version_seleccionada or "").strip().upper()
     if mencionada == seleccionada:
         return None
 
-    if mencionada not in versiones_soportadas:
+    if mencionada.endswith(_SUFIJO_FAMILIA):
+        # "v1" con V2.0 seleccionada: no se sabe si es V1.0 o V1.1.
+        mencionada = " o ".join(_candidatas_familia(mencionada, versiones_soportadas))
+        detalle = (
+            f"Has seleccionado {seleccionada} en el selector, pero tu pregunta "
+            f"hace referencia a {mencionada}."
+        )
+    elif mencionada not in versiones_soportadas:
         detalle = (
             f"La versión mencionada ({mencionada}) no está entre las versiones "
             f"documentadas ({', '.join(versiones_soportadas)})."

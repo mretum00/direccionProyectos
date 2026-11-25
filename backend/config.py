@@ -150,15 +150,16 @@ def load_settings() -> Settings:
         rag_evidence_high_score=_get_float("RAG_EVIDENCE_HIGH_SCORE", 0.5),
         # Extra de puntuación para los fragmentos que contienen el código de avería exacto de la consulta.
         rag_code_match_bonus=_get_float("RAG_CODE_MATCH_BONUS", 0.15),
-        # BM25 + RRF está desactivado por defecto hasta validar el benchmark en cada entorno.
-        rag_hybrid_retrieval_enabled=_get_bool("RAG_HYBRID_RETRIEVAL_ENABLED", False),
+        # BM25 + RRF. Activado por defecto (validado en el benchmark); se puede desactivar en .env.
+        rag_hybrid_retrieval_enabled=_get_bool("RAG_HYBRID_RETRIEVAL_ENABLED", True),
         rag_rrf_k=rrf_k,
         # Anclaje de secciones operativas en preguntas sobre componentes CMP.
-        rag_component_anchor_enabled=_get_bool("RAG_COMPONENT_ANCHOR_ENABLED", False),
-        # R03: reranking COMBINADA validado experimentalmente; desactivado por defecto.
-        rag_combined_reranking_enabled=_get_bool("RAG_COMBINED_RERANKING_ENABLED", False),
-        # Detección determinista de preguntas técnicas ambiguas (R06).
-        rag_ambiguity_detection_enabled=_get_bool("RAG_AMBIGUITY_DETECTION_ENABLED", False),
+        rag_component_anchor_enabled=_get_bool("RAG_COMPONENT_ANCHOR_ENABLED", True),
+        # R03: reranking COMBINADA validado experimentalmente; activado por defecto.
+        rag_combined_reranking_enabled=_get_bool("RAG_COMBINED_RERANKING_ENABLED", True),
+        # Detección determinista de preguntas técnicas ambiguas (R06). Activada por defecto para que
+        # no dependa de que cada .env local tenga la variable (con False no se pedía aclarar "la bomba").
+        rag_ambiguity_detection_enabled=_get_bool("RAG_AMBIGUITY_DETECTION_ENABLED", True),
         # Segunda pasada LLM que revisa afirmaciones frente a los fragmentos recuperados.
         rag_claim_verification_enabled=_get_bool("RAG_CLAIM_VERIFICATION_ENABLED", True),
         # R07: exige verificar que los fragmentos cubren los datos solicitados antes de generar.
