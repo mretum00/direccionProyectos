@@ -52,6 +52,12 @@ npm run dev
 
 Entra en **http://localhost:5173** y disfruta. 🚀
 
+### Autenticación y sesiones
+
+Esta versión del prototipo permite acceder al asistente sin iniciar sesión. Las pantallas de inicio de sesión y registro son solo interfaces: no están conectadas a un sistema de autenticación.
+
+El servidor no crea sesiones de usuario, por lo que la caducidad no aplica a esta versión. Si se incorpora autenticación, el servidor deberá rechazar las sesiones caducadas.
+
 ---
 
 ## Notas
