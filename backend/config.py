@@ -107,6 +107,7 @@ class Settings:
     rag_hybrid_retrieval_enabled: bool
     rag_rrf_k: int
     rag_component_anchor_enabled: bool
+    rag_combined_reranking_enabled: bool
     rag_ambiguity_detection_enabled: bool
     rag_claim_verification_enabled: bool
     rag_evidence_sufficiency_enabled: bool
@@ -154,6 +155,8 @@ def load_settings() -> Settings:
         rag_rrf_k=rrf_k,
         # Anclaje de secciones operativas en preguntas sobre componentes CMP.
         rag_component_anchor_enabled=_get_bool("RAG_COMPONENT_ANCHOR_ENABLED", False),
+        # R03: reranking COMBINADA validado experimentalmente; desactivado por defecto.
+        rag_combined_reranking_enabled=_get_bool("RAG_COMBINED_RERANKING_ENABLED", False),
         # Detección determinista de preguntas técnicas ambiguas (R06).
         rag_ambiguity_detection_enabled=_get_bool("RAG_AMBIGUITY_DETECTION_ENABLED", False),
         # Segunda pasada LLM que revisa afirmaciones frente a los fragmentos recuperados.
