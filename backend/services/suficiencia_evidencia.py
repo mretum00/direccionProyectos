@@ -13,6 +13,8 @@ import re
 import unicodedata
 from typing import Any, Callable
 
+from .texto import localizar_cita, normalizar_cita, quitar_comillas
+
 MAX_ITEMS = 10
 MAX_TEXTO_FRAGMENTO = 1100
 
@@ -35,11 +37,6 @@ def resultado_suficiencia_no_disponible() -> dict[str, Any]:
         "requested_items": [],
         "missing_information": [],
     }
-
-
-def _normalizar(texto: str) -> str:
-    texto = unicodedata.normalize("NFKC", texto).casefold()
-    return " ".join(texto.split())
 
 
 _PATRON_AIRE_ACONDICIONADO = re.compile(
@@ -80,7 +77,7 @@ def _cita_respalda_el_subsistema_solicitado(pregunta: str, item: str, cita: str)
         for frase in re.split(r"(?<=[.!?;])\s+|\n+", cita_normalizada)
         if frase.strip()
     ]
-    item_normalizado = _normalizar(item)
+    item_normalizado = normalizar_cita(item)
     if "presion" in item_normalizado or "presión" in item_normalizado:
         return any(
             _PATRON_CONTEXTO_A_C.search(frase)
@@ -226,16 +223,8 @@ def evaluar_suficiencia_evidencia(
                 if clave in fragmentos_por_ref and clave not in refs_validas:
                     refs_validas.append(clave)
 
-        cita = str(raw.get("evidence_quote", "")).strip()[:500]
-        source_ids: list[str] = []
-        if cita:
-            cita_normalizada = _normalizar(cita)
-            for ref in refs_validas:
-                texto_fuente = _normalizar(str(fragmentos_por_ref[ref].get("texto", "")))
-                if cita_normalizada and cita_normalizada in texto_fuente:
-                    chunk_id = str(fragmentos_por_ref[ref].get("chunk_id", ""))
-                    if chunk_id and chunk_id not in source_ids:
-                        source_ids.append(chunk_id)
+        cita = quitar_comillas(str(raw.get("evidence_quote", "")))[:500]
+        source_ids = localizar_cita(cita, fragmentos, [fragmentos_por_ref[ref] for ref in refs_validas])
 
         # El estado supported solo se acepta si la cita literal existe en una fuente válida
         # y, cuando la pregunta especifica un subsistema, la propia cita respalda ese ámbito.

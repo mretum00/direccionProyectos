@@ -3,8 +3,11 @@ import {
   ArrowDown,
   Brain,
   ChevronDown,
+  CircleAlert,
   CircleCheck,
   CircleMinus,
+  ClipboardCheck,
+  Info,
   FileText,
   Languages,
   ListChecks,
@@ -15,7 +18,7 @@ import {
   ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
-import type { QueryStage, ReasoningStep, StepFragment } from '@/types/chat';
+import type { QueryStage, ReasoningStep, StepFragment, StepPoint } from '@/types/chat';
 import { SOURCE_TYPES } from '@/utils/sourceTypes';
 
 interface ReasoningStepsProps {
@@ -23,6 +26,7 @@ interface ReasoningStepsProps {
 }
 
 const KIND_ICONS: Record<ReasoningStep['kind'], LucideIcon> = {
+  checks: ClipboardCheck,
   query: MessageSquareText,
   interpretation: Languages,
   search: Search,
@@ -138,11 +142,10 @@ function FragmentRow({ fragment }: { fragment: StepFragment }) {
 
   return (
     <li
-      className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-[11px] ${
-        fragment.used ? 'bg-exito-500/5' : 'opacity-55'
-      }`}
+      className={`rounded-md px-2 py-1.5 text-[11px] ${fragment.used ? 'bg-exito-500/5' : 'opacity-55'}`}
       title={`${type.label} · ${fragment.used ? 'usado en la respuesta' : 'recuperado pero no usado'}`}
     >
+      <div className="flex items-center gap-2">
       <StatusIcon className={`w-3.5 h-3.5 flex-shrink-0 ${fragment.used ? 'text-exito-400' : 'text-texto-500'}`} />
       <span className="font-mono text-texto-200 whitespace-nowrap">{fragment.document}</span>
       {location && <span className="text-texto-500 truncate">{location}</span>}
@@ -154,6 +157,32 @@ function FragmentRow({ fragment }: { fragment: StepFragment }) {
         />
       </span>
       <span className="font-mono text-texto-400 w-8 text-right flex-shrink-0">{fragment.score.toFixed(2)}</span>
+      </div>
+      {fragment.note && (
+        <p className="mt-1 ml-5 flex items-start gap-1 text-texto-400">
+          <Info className="w-3 h-3 mt-px flex-shrink-0 text-marca-400" />
+          {fragment.note}
+        </p>
+      )}
+    </li>
+  );
+}
+
+const CHECK_STATUS: Record<NonNullable<StepPoint['status']>, { icon: LucideIcon; className: string }> = {
+  ok: { icon: CircleCheck, className: 'text-exito-400' },
+  stop: { icon: CircleAlert, className: 'text-aviso-400' },
+  skipped: { icon: CircleMinus, className: 'text-texto-500' },
+};
+
+/** Resultado de una comprobación previa: icono de estado y texto. */
+function CheckPoint({ point }: { point: StepPoint }) {
+  const { icon: Icon, className } = CHECK_STATUS[point.status ?? 'ok'];
+  return (
+    <li className="flex gap-2 text-texto-300">
+      <Icon className={`w-3.5 h-3.5 mt-px flex-shrink-0 ${className}`} />
+      <p>
+        <RichText text={point.text} />
+      </p>
     </li>
   );
 }
@@ -201,7 +230,15 @@ function StepBody({ step }: { step: ReasoningStep }) {
     );
   }
 
-  if (step.points?.length) {
+  if (step.points?.length && step.kind === 'checks') {
+    parts.push(
+      <ul key="points" className="space-y-1.5">
+        {step.points.map((point, i) => (
+          <CheckPoint key={i} point={point} />
+        ))}
+      </ul>,
+    );
+  } else if (step.points?.length) {
     parts.push(
       <ol key="points" className="space-y-2">
         {step.points.map((point, i) => (
@@ -231,7 +268,14 @@ function StepBody({ step }: { step: ReasoningStep }) {
 }
 
 function StepItem({ step, last }: { step: ReasoningStep; last: boolean }) {
-  const evidence = step.kind === 'conclusion' && step.evidence ? EVIDENCE_STYLES[step.evidence] : null;
+  // Las comprobaciones previas que detienen la consulta se marcan en ámbar, como un aviso.
+  const stopped = step.kind === 'checks' && step.points?.some((point) => point.status === 'stop');
+  const evidence =
+    step.kind === 'conclusion' && step.evidence
+      ? EVIDENCE_STYLES[step.evidence]
+      : stopped
+        ? EVIDENCE_STYLES.medium
+        : null;
   const Icon = step.kind === 'conclusion' && step.evidence === 'insufficient' ? ShieldAlert : KIND_ICONS[step.kind];
 
   return (
@@ -263,9 +307,11 @@ export function ReasoningSteps({ steps }: ReasoningStepsProps) {
 
   const fragments = phases.find((s) => s.kind === 'search')?.fragments;
   const conclusion = phases.find((s) => s.kind === 'conclusion');
+  // En una aclaración no se llega a buscar: el resumen es el resultado de las comprobaciones.
+  const checks = phases.find((s) => s.kind === 'checks');
   const summary = [
     fragments && `${fragments.filter((f) => f.used).length} de ${fragments.length} fragmentos usados`,
-    conclusion?.title,
+    conclusion?.title ?? checks?.title,
   ].filter(Boolean);
 
   return (

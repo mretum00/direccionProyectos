@@ -179,6 +179,56 @@ def cargar_fragmentos() -> list[dict]:
     return fragmentos
 
 
+_PATRON_CODIGO_DOCUMENTO = re.compile(r"HTM240-[A-Z]{3}-\d{3}")
+# Frase con la que una edición sustituida remite a la vigente: "El resto de pasos de
+# esta versión obsoleta coincide sustancialmente con la versión vigente".
+_PATRON_PASOS_COINCIDEN = re.compile(
+    r"resto de (?:los )?pasos[^.]*coincide[^.]*versi[oó]n vigente",
+    re.IGNORECASE,
+)
+
+
+def _versiones_heredadas(fragmentos: list[dict]) -> dict[str, set[str]]:
+    """Versiones del vehículo para las que una edición sustituida remite a la vigente.
+
+    Ejemplo: HTM240-PRC-003 v1.0 (SUSTITUIDO, solo V1.0) dice que sus pasos coinciden
+    con la v2.0 vigente (etiquetada V1.1 y V2.0) salvo el rango de corriente. Sin esto,
+    un usuario de V1.0 nunca recibía los pasos del procedimiento y R07 respondía que
+    no había evidencia. Devuelve {código del documento: versiones heredadas}.
+    """
+    heredadas: dict[str, set[str]] = {}
+    for fragmento in fragmentos:
+        chunk_id = str(fragmento.get("chunk_id", ""))
+        if "SUSTITUIDO" not in chunk_id.upper():
+            continue
+        if not _PATRON_PASOS_COINCIDEN.search(fragmento.get("texto") or ""):
+            continue
+        codigo = _PATRON_CODIGO_DOCUMENTO.search(chunk_id)
+        if codigo:
+            heredadas.setdefault(codigo.group(0), set()).update(fragmento.get("versiones") or [])
+    return heredadas
+
+
+def _versiones_efectivas(fragmento: dict, heredadas: dict[str, set[str]]) -> list[str]:
+    """Versiones propias del fragmento más las que le delega su edición sustituida."""
+    versiones = list(fragmento.get("versiones") or [])
+    chunk_id = str(fragmento.get("chunk_id", ""))
+    codigo = _PATRON_CODIGO_DOCUMENTO.search(chunk_id)
+    if codigo and "SUSTITUIDO" not in chunk_id.upper():
+        versiones += [v for v in sorted(heredadas.get(codigo.group(0), ())) if v not in versiones]
+    return sorted(versiones)
+
+
+def _nota_version_heredada(chunk_id: str, version: str) -> str:
+    """Explica por qué un fragmento de la edición vigente aplica a `version`."""
+    codigo = _PATRON_CODIGO_DOCUMENTO.search(chunk_id)
+    documento = codigo.group(0) if codigo else "Este documento"
+    return (
+        f"Edición vigente de {documento}: la edición sustituida para {version} indica "
+        "que sus pasos coinciden con esta."
+    )
+
+
 def buscar_fragmentos(consulta_tecnica: str, version: str, top_k: int) -> list[dict]:
     """Devuelve los top_k fragmentos relevantes para la versión seleccionada.
 
@@ -191,7 +241,17 @@ def buscar_fragmentos(consulta_tecnica: str, version: str, top_k: int) -> list[d
     vector_pregunta = embedding_normalizado(consulta_tecnica)
     codigos = _extraer_codigos_htm(consulta_tecnica)
 
-    # Primero aplicar los filtros estructurales (categoría y versión).
+    # Primero aplicar los filtros estructurales (categoría y versión). La versión
+    # tiene en cuenta lo que una edición sustituida delega en la vigente.
+    heredadas = _versiones_heredadas(fragmentos)
+    for f in fragmentos:
+        propias = f["versiones"]
+        f["versiones"] = _versiones_efectivas(f, heredadas)
+        f["nota_version"] = (
+            _nota_version_heredada(f["chunk_id"], version)
+            if version in f["versiones"] and version not in propias
+            else None
+        )
     aplicables = [
         f for f in fragmentos
         if f["categoria"] != "Dictionary" and version in f["versiones"]
@@ -226,6 +286,7 @@ def buscar_fragmentos(consulta_tecnica: str, version: str, top_k: int) -> list[d
             # Campo interno de ranking; construir_fuentes no lo expone en la API.
             "ranking_score": ranking_score,
             "versiones": f["versiones"],
+            "nota_version": f["nota_version"],
             "pagina": f["pagina"],
             "seccion": f["seccion"],
         })

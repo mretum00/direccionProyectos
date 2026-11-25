@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import json
 import re
-import unicodedata
 from typing import Any, Callable
 
+from .texto import localizar_cita, quitar_comillas
 
 MAX_AFIRMACIONES = 12
 MAX_TEXTO_FRAGMENTO = 1800
@@ -38,12 +38,6 @@ def resultado_verificacion_no_disponible() -> dict[str, Any]:
         "claims_supported": 0,
         "claims": [],
     }
-
-
-def _normalizar_para_busqueda(texto: str) -> str:
-    """Normaliza Unicode, mayúsculas y espacios para localizar una cita literal."""
-    normalizado = unicodedata.normalize("NFKC", texto).casefold()
-    return " ".join(normalizado.split())
 
 
 def _extraer_json(texto: str) -> dict[str, Any]:
@@ -177,18 +171,8 @@ def verificar_afirmaciones(
                 if clave in fragmentos_por_ref and clave not in refs_validas:
                     refs_validas.append(clave)
 
-        cita = str(item.get("evidence_quote", "")).strip()[:400]
-        ids_con_cita: list[str] = []
-        if cita:
-            cita_normalizada = _normalizar_para_busqueda(cita)
-            for ref in refs_validas:
-                texto_fuente = _normalizar_para_busqueda(
-                    str(fragmentos_por_ref[ref].get("texto", ""))
-                )
-                if cita_normalizada and cita_normalizada in texto_fuente:
-                    chunk_id = str(fragmentos_por_ref[ref].get("chunk_id", ""))
-                    if chunk_id and chunk_id not in ids_con_cita:
-                        ids_con_cita.append(chunk_id)
+        cita = quitar_comillas(str(item.get("evidence_quote", "")))[:400]
+        ids_con_cita = localizar_cita(cita, fragmentos, [fragmentos_por_ref[ref] for ref in refs_validas])
 
         # Un estado positivo no se acepta solo porque lo diga el segundo LLM:
         # requiere una cita literal que exista en un fragmento al que se refiere.

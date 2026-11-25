@@ -88,6 +88,9 @@ class StepFragment(BaseModel):
     section: str | None = None
     score: float
     used: bool
+    # Aclaración sobre la versión: p. ej. pasos de la edición vigente que la edición
+    # sustituida declara aplicables a la versión seleccionada.
+    note: str | None = None
 
 
 class StepPoint(BaseModel):
@@ -95,6 +98,8 @@ class StepPoint(BaseModel):
 
     text: str
     refs: list[str] | None = None
+    # Resultado de una comprobación previa: superada, detiene la consulta u omitida.
+    status: Literal["ok", "stop", "skipped"] | None = None
 
 
 class QueryStage(BaseModel):
@@ -109,7 +114,7 @@ class QueryStage(BaseModel):
 class ReasoningStep(BaseModel):
     """Fase observable del proceso RAG, no una transcripción del razonamiento interno del modelo."""
 
-    kind: Literal["query", "interpretation", "search", "analysis", "conclusion"]
+    kind: Literal["checks", "query", "interpretation", "search", "analysis", "conclusion"]
     title: str
     detail: str | None = None
     stages: list[QueryStage] | None = None

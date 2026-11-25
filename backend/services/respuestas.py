@@ -1,19 +1,98 @@
 """
 Lo que devuelve la API al frontend.
 
-- construir_fuentes: convierte los fragmentos usados en fuentes (formato
-  `Source` de models/schemas.py).
-- respuesta_sin_evidencia: respuesta fija cuando no hay documentación que
-  respalde una respuesta. No llama al LLM.
-- pedir_aclaracion: pide al usuario que elija la versión del motor cuando falta
-  o no existe. No llama al LLM.
+Todas las respuestas del asistente salen de `nueva_respuesta`, así tienen siempre
+los mismos campos (formato `ChatResponse` de models/schemas.py) y el frontend
+puede pintarlas igual. Hay tres tipos:
+
+- respuesta normal: texto del LLM con fuentes (la arma rag_pipeline.py).
+- aclaración (`respuesta_aclaracion`): la consulta se detiene antes de buscar
+  porque falta un dato (versión, componente...). No llama al LLM.
+- sin evidencia (`respuesta_sin_evidencia`): la documentación no permite
+  responder con fiabilidad. No llama al LLM.
+
+Además:
+- construir_fuentes: convierte los fragmentos usados en fuentes (`Source`).
+- pedir_aclaracion: aclaración para elegir la versión del motor.
+- respuesta_limitada_por_verificacion: recorta la respuesta a lo verificado.
 """
 
 import re
 import uuid
+from typing import Any, Literal, Optional
 
 from config import ENGINE_VERSIONS, settings
 
+from .suficiencia_evidencia import resultado_suficiencia_no_ejecutada
+from .texto import cita_en_texto
+from .verificacion import resultado_verificacion_no_ejecutada
+
+TipoAclaracion = Literal["engine_version", "technical", "version_mismatch", "version_comparison"]
+
+TEXTO_SIN_EVIDENCIA = (
+    "No hay información suficiente para responder a esta consulta. "
+    "Se recomienda escalar la incidencia al equipo de soporte."
+)
+
+
+def nueva_respuesta(
+    contenido: str,
+    *,
+    evidencia: str = "insufficient",
+    aclaracion: Optional[TipoAclaracion] = None,
+    fuentes: Optional[list[dict]] = None,
+    documentos: int = 0,
+    alertas: Optional[list[dict]] = None,
+    verificacion: Optional[dict] = None,
+    suficiencia: Optional[dict] = None,
+    pasos: Optional[list[dict]] = None,
+) -> dict[str, Any]:
+    """Única forma de construir una respuesta del asistente (formato ChatResponse).
+
+    Rellena siempre todos los campos, con valores neutros si no aplican, para
+    que ninguna rama del flujo devuelva una respuesta con otra forma.
+    """
+    respuesta: dict[str, Any] = {
+        "message": {"id": str(uuid.uuid4()), "role": "assistant", "content": contenido},
+        "evidence_status": evidencia,
+        "needs_clarification": aclaracion is not None,
+        "sources": fuentes or [],
+        "documents_consulted": documentos,
+        "safety_alerts": alertas or [],
+        "claim_verification": verificacion or resultado_verificacion_no_ejecutada(),
+        "evidence_sufficiency": suficiencia or resultado_suficiencia_no_ejecutada(),
+        "steps": pasos or [],
+    }
+    if aclaracion is not None:
+        respuesta["clarification_kind"] = aclaracion
+    return respuesta
+
+
+def respuesta_aclaracion(
+    tipo: TipoAclaracion,
+    contenido: str,
+    alertas: Optional[list[dict]] = None,
+) -> dict[str, Any]:
+    """La consulta se detiene para pedir un dato al usuario. No llama al LLM."""
+    return nueva_respuesta(contenido, aclaracion=tipo, alertas=alertas)
+
+
+def respuesta_sin_evidencia(contenido: str = TEXTO_SIN_EVIDENCIA, **campos: Any) -> dict[str, Any]:
+    """Respuesta fija cuando no hay documentación que respalde una respuesta.
+
+    `campos` admite los mismos argumentos con nombre que `nueva_respuesta`
+    (pasos, alertas, suficiencia...). La evidencia siempre es insuficiente.
+    """
+    return nueva_respuesta(contenido, evidencia="insufficient", **campos)
+
+
+def contar_documentos(fragmentos: list[dict]) -> int:
+    """Documentos distintos entre los fragmentos ("HTM240-DTC-001_3" -> "HTM240-DTC-001")."""
+    return len({
+        str(fragmento["chunk_id"]).rsplit("_", 1)[0]
+        for fragmento in fragmentos
+        if fragmento.get("chunk_id")
+    })
 
 
 # Tipo de documento (según su código, HTM240-XXX-001) -> tipo de fuente del contrato.
@@ -109,24 +188,7 @@ def construir_fuentes(
     return fuentes
 
 
-def respuesta_sin_evidencia() -> dict:
-    """Respuesta fija cuando no hay documentación que respalde una respuesta."""
-    return {
-        "message": {
-            "id": str(uuid.uuid4()),
-            "role": "assistant",
-            "content": (
-                "No hay información suficiente para responder a esta consulta. "
-                "Se recomienda escalar la incidencia al equipo de soporte."
-            ),
-        },
-        "evidence_status": "insufficient",
-        "sources": [],
-        "documents_consulted": 0
-    }
-
-
-def pedir_aclaracion(version_recibida: str) -> dict:
+def pedir_aclaracion(version_recibida: str, alertas: Optional[list[dict]] = None) -> dict[str, Any]:
     """Pide al usuario que elija la versión del motor. No llama al LLM.
 
     El frontend, al ver `needs_clarification`, muestra el aviso con el botón
@@ -147,22 +209,9 @@ def pedir_aclaracion(version_recibida: str) -> dict:
             f"({opciones}). Elígela en el selector de motor."
         )
 
-    return {
-        "message": {
-            "id": str(uuid.uuid4()),
-            "role": "assistant",
-            "content": texto,
-        },
-        "needs_clarification": True,
-        "sources": [],
-        "documents_consulted": 0,
-    }
+    return respuesta_aclaracion("engine_version", texto, alertas)
 
-def _normalizar_cita(texto: str) -> str:
-    """Normaliza una cita para volver a comprobarla antes de mostrarla."""
-    import unicodedata
 
-    return " ".join(unicodedata.normalize("NFKC", texto).casefold().split())
 
 _PATRON_INTERVALO_CAUDAL = re.compile(
     r"(?<![\w.,])(\d+(?:[.,]\d+)?)\s*(?:a|[-–—])"
@@ -218,14 +267,12 @@ def respuesta_limitada_por_verificacion(
             continue
 
         indices_validos: list[int] = []
-        cita_normalizada = _normalizar_cita(cita)
         for source_id in ids_fuente:
             localizado = fragmentos_por_id.get(str(source_id))
             if localizado is None:
                 continue
             indice, fragmento = localizado
-            texto_fuente = _normalizar_cita(str(fragmento.get("texto", "")))
-            if cita_normalizada and cita_normalizada in texto_fuente:
+            if cita_en_texto(cita, str(fragmento.get("texto", ""))):
                 indices_validos.append(indice)
 
         if indices_validos:

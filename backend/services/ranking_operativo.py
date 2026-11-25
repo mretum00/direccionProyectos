@@ -23,9 +23,11 @@ _ACTION_SECTIONS = {
     "criterios de aceptacion",
     "verificacion final",
 }
+# Raíces de los verbos de acción en cualquier persona: "compruebo", "reviso",
+# "verifico", "mido"... (antes solo se reconocían infinitivo e imperativo, así que
+# "¿Cómo compruebo la bomba CMP-02?" no recibía los pasos del procedimiento).
 _ACTION_TERMS_RE = re.compile(
-    r"\b(comprobar|comprueba|verificar|verifica|realizar|realiza|"
-    r"ejecutar|ejecuta|medir|mide|probar|prueba|inspeccionar|revisar)\b"
+    r"\b(comprob|comprueb|verific|realiz|ejecut|medir|mid[oaei]|probar|prueb|inspeccion|revis)\w*"
 )
 
 

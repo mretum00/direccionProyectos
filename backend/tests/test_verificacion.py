@@ -149,3 +149,25 @@ def test_el_prompt_incluye_fragmentos_con_identificadores_y_no_usa_fuente_del_mo
     assert "[F1] Documento:" in prompts[0]
     assert "HTM-0101 indica sobretemperatura." in prompts[0]
     assert "una cita del primer modelo" not in prompts[0]
+
+
+def test_acepta_cita_literal_con_referencia_mal_numerada():
+    fragmentos = [
+        {"chunk_id": "A_1", "texto": "Texto sin relación con la bomba."},
+        {"chunk_id": "B_2", "texto": "3. Forzar la activación de la bomba CMP-02 al 100% desde el menú de diagnóstico."},
+    ]
+    resultado = verificar_afirmaciones(
+        "Activa la bomba CMP-02 al 100 %.",
+        fragmentos,
+        generador=lambda _prompt: _respuesta_verificador([
+            {
+                "claim": "Activa la bomba CMP-02 al 100 %.",
+                "status": "supported",
+                "source_refs": ["F1"],
+                "evidence_quote": "Forzar la activación de la bomba CMP-02 al 100%",
+            }
+        ]),
+    )
+
+    assert resultado["claims"][0]["status"] == "supported"
+    assert resultado["claims"][0]["source_ids"] == ["B_2"]

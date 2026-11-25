@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import re
 from typing import Any
-from uuid import uuid4
 
 from config import ENGINE_VERSIONS
+
+from .respuestas import respuesta_aclaracion
 
 # Exige un prefijo explícito (V1.0, v.2 o "versión 1.0") para no confundir
 # decimales, tolerancias o valores técnicos con versiones del sistema.
@@ -166,16 +167,4 @@ def respuesta_aclaracion_version(
     alertas_seguridad: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Construye una respuesta de aclaración sin invocar embeddings ni Groq."""
-    return {
-        "message": {
-            "id": str(uuid4()),
-            "role": "assistant",
-            "content": incoherencia["message"],
-        },
-        "evidence_status": "insufficient",
-        "needs_clarification": True,
-        "clarification_kind": incoherencia["kind"],
-        "sources": [],
-        "documents_consulted": 0,
-        "safety_alerts": alertas_seguridad or [],
-    }
+    return respuesta_aclaracion(incoherencia["kind"], incoherencia["message"], alertas_seguridad)

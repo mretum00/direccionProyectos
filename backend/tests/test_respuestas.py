@@ -140,3 +140,20 @@ def test_normalizar_intervalo_caudal_no_modifica_otros_datos():
     resultado = normalizar_intervalos_caudal(texto)
 
     assert resultado == texto
+
+
+def test_todas_las_respuestas_fijas_tienen_la_misma_forma():
+    from services.coherencia_version import respuesta_aclaracion_version
+    from services.ambiguedad import respuesta_aclaracion_tecnica
+    from services.respuestas import nueva_respuesta
+
+    campos = set(nueva_respuesta("texto").keys())
+    for respuesta in (
+        respuesta_sin_evidencia(),
+        pedir_aclaracion(""),
+        respuesta_aclaracion_tecnica({"message": "¿Cuál?"}),
+        respuesta_aclaracion_version({"kind": "version_mismatch", "message": "No coincide"}),
+    ):
+        assert campos <= set(respuesta.keys())
+        assert respuesta["claim_verification"]["status"] == "not_run"
+        assert respuesta["evidence_sufficiency"]["status"] == "not_run"

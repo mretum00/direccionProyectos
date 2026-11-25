@@ -98,12 +98,16 @@ export interface StepFragment {
   section?: string;
   score: number;
   used: boolean;
+  /** Por qué aplica a la versión elegida si viene de otra edición del documento. */
+  note?: string;
 }
 
 /** Resumen breve de una comprobación respaldada por fuentes. */
 export interface StepPoint {
   text: string;
   refs?: string[];
+  /** Resultado de una comprobación previa: superada, detiene la consulta u omitida. */
+  status?: 'ok' | 'stop' | 'skipped';
 }
 
 /** Etapa observable de transformación de la consulta. */
@@ -116,7 +120,7 @@ export interface QueryStage {
 
 /** Fases observables del proceso RAG; no contiene razonamiento interno del modelo. */
 export interface ReasoningStep {
-  kind: 'query' | 'interpretation' | 'search' | 'analysis' | 'conclusion';
+  kind: 'checks' | 'query' | 'interpretation' | 'search' | 'analysis' | 'conclusion';
   title: string;
   detail?: string;
   stages?: QueryStage[];

@@ -119,3 +119,12 @@ def test_retrieval_anclaje_deshabilitado_conserva_ranking_base(monkeypatch):
 
     assert resultados[0]["seccion"] == "Objetivo"
     assert resultados[1]["seccion"] == "Pasos"
+
+
+def test_consulta_procedimental_en_primera_persona():
+    from services.ranking_operativo import es_consulta_procedimental
+
+    assert es_consulta_procedimental("¿Cómo compruebo la bomba CMP-02?")
+    assert es_consulta_procedimental("¿Cómo reviso el filtro CMP-24?")
+    assert es_consulta_procedimental("¿Cómo mido el caudal de CMP-02?")
+    assert not es_consulta_procedimental("¿Cómo es el problema de la bomba CMP-02?")

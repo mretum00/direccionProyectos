@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import re
 import unicodedata
-import uuid
 from typing import Any
+
+from .respuestas import respuesta_aclaracion
 
 
 _PATRON_CMP = re.compile(r"(?<![A-Z0-9])CMP[-‐‑‒–—− ]?(\d{2})(?!\d)", re.IGNORECASE)
@@ -239,8 +240,76 @@ def _resolver_seleccion_aclaracion(mensaje: str, historial: list[dict]) -> str |
     return None
 
 
+def es_pregunta_nueva(mensaje: str) -> bool:
+    """¿Es el mensaje una pregunta completa y no una respuesta breve a la aclaración?
+
+    Una respuesta a «¿A cuál bomba te refieres?» es corta y sin signos de
+    interrogación («La A», «No sé»). Una pregunta nueva lleva «?» o es más larga.
+    """
+    texto = (mensaje or "").strip()
+    return "?" in texto or "¿" in texto or len(texto.split()) > 6
+
+
+def responde_a_aclaracion(mensaje: str, historial: list[dict] | None) -> bool:
+    """¿Está el usuario contestando a la aclaración técnica pendiente?
+
+    Sí si elige una opción, o si su mensaje es una respuesta breve (entonces se le
+    repite la aclaración en vez de adivinar). Si hace una pregunta nueva, no: se
+    trata como cualquier otra consulta y el chat no se queda atascado repitiendo
+    la misma aclaración.
+    """
+    if not hay_aclaracion_tecnica_pendiente(historial):
+        return False
+    if _resolver_seleccion_aclaracion(mensaje, historial or []) is not None:
+        return True
+    return not es_pregunta_nueva(mensaje)
+
+
+def _pregunta_que_origino_la_aclaracion(historial: list[dict]) -> str | None:
+    """La pregunta del usuario que provocó la aclaración pendiente.
+
+    Si la aclaración se repitió porque el usuario contestó algo vago
+    (pregunta -> aclaración -> «No sé» -> la misma aclaración), la pregunta
+    original es la primera, no la respuesta vaga.
+    """
+    pregunta: str | None = None
+    indice = len(historial) - 1
+    aclaracion = str(historial[indice].get("content", ""))
+    while (
+        indice >= 1
+        and historial[indice].get("role") == "assistant"
+        and historial[indice].get("clarification_kind") == "technical"
+        and str(historial[indice].get("content", "")) == aclaracion
+        and historial[indice - 1].get("role") == "user"
+    ):
+        pregunta = str(historial[indice - 1].get("content", "")).strip() or pregunta
+        indice -= 2
+    return pregunta
+
+
+def seleccion_tras_aclaracion(mensaje: str, historial: list[dict] | None) -> tuple[str, str] | None:
+    """(pregunta original, opción elegida) si el mensaje resuelve la aclaración pendiente."""
+    if not hay_aclaracion_tecnica_pendiente(historial):
+        return None
+    pregunta_original = _pregunta_que_origino_la_aclaracion(historial or [])
+    seleccion = _resolver_seleccion_aclaracion(mensaje, historial or [])
+    if not pregunta_original or not seleccion:
+        return None
+    return pregunta_original, seleccion
+
+
+def pregunta_de_busqueda_tras_aclaracion(pregunta_original: str, seleccion: str) -> str:
+    """Pregunta autónoma para buscar y evaluar cobertura: sin instrucciones para el LLM.
+
+    «¿Cómo reviso la bomba?» + «bomba auxiliar A CMP-02...» ->
+    «¿Cómo reviso la bomba? (bomba auxiliar A CMP-02...)». Las instrucciones del prompt
+    («no vuelvas a solicitarla») no deben llegar a la búsqueda: desvían los embeddings.
+    """
+    return f"{pregunta_original.strip()} ({seleccion})"
+
+
 def consulta_autonoma_tras_aclaracion(mensaje: str, historial: list[dict] | None) -> str | None:
-    """Combina la pregunta original con una selección técnica inequívoca.
+    """Combina la pregunta original con una selección técnica inequívoca (para el prompt).
 
     Una respuesta breve como «La bomba A» se expande a su identificador y circuito.
     Devuelve None si la respuesta no resuelve las opciones; el pipeline repetirá la
@@ -249,19 +318,10 @@ def consulta_autonoma_tras_aclaracion(mensaje: str, historial: list[dict] | None
     if not hay_aclaracion_tecnica_pendiente(historial):
         return mensaje
 
-    usuarios_previos = [
-        str(item.get("content", "")).strip()
-        for item in (historial or [])
-        if item.get("role") == "user" and item.get("content")
-    ]
-    if not usuarios_previos:
+    resuelta = seleccion_tras_aclaracion(mensaje, historial)
+    if resuelta is None:
         return None
-
-    seleccion = _resolver_seleccion_aclaracion(mensaje, historial or [])
-    if not seleccion:
-        return None
-
-    pregunta_original = usuarios_previos[-1]
+    pregunta_original, seleccion = resuelta
     return (
         f"{pregunta_original}\n"
         f"Aclaración técnica confirmada por el usuario: {seleccion}. "
@@ -458,16 +518,4 @@ def respuesta_aclaracion_tecnica(
     alertas_seguridad: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Construye una respuesta API de aclaración técnica sin llamar al LLM."""
-    return {
-        "message": {
-            "id": str(uuid.uuid4()),
-            "role": "assistant",
-            "content": aclaracion["message"],
-        },
-        "evidence_status": "insufficient",
-        "needs_clarification": True,
-        "clarification_kind": "technical",
-        "sources": [],
-        "documents_consulted": 0,
-        "safety_alerts": alertas_seguridad or [],
-    }
+    return respuesta_aclaracion("technical", aclaracion["message"], alertas_seguridad)

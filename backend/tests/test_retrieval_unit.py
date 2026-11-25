@@ -297,3 +297,54 @@ def test_no_anade_notas_del_diccionario_a_consultas_sin_subsistema_ac(monkeypatc
     resultados = retrieval.anadir_notas_de_alcance("¿Qué caudal tiene CMP-02?", [], "V2.0")
 
     assert resultados == []
+
+
+def test_edicion_sustituida_que_remite_a_la_vigente_hereda_su_version():
+    from services.retrieval import _versiones_efectivas, _versiones_heredadas
+
+    fragmentos = [
+        {
+            "chunk_id": "HTM240-PRC-003_Verificacion_v1.0_SUSTITUIDO.pdf_1",
+            "texto": "El resto de pasos de esta versión obsoleta coincide sustancialmente con la versión vigente.",
+            "versiones": ["V1.0"],
+        },
+        {"chunk_id": "HTM240-PRC-003_Verificacion.pdf_8", "texto": "Pasos 1. ...", "versiones": ["V1.1", "V2.0"]},
+        {"chunk_id": "HTM240-PRC-011_Filtro.pdf_7", "texto": "Pasos 1. ...", "versiones": ["V1.1", "V2.0"]},
+    ]
+    heredadas = _versiones_heredadas(fragmentos)
+
+    assert _versiones_efectivas(fragmentos[1], heredadas) == ["V1.0", "V1.1", "V2.0"]
+    # Otro documento sin edición sustituida no cambia.
+    assert _versiones_efectivas(fragmentos[2], heredadas) == ["V1.1", "V2.0"]
+    # La propia edición sustituida conserva solo sus versiones.
+    assert _versiones_efectivas(fragmentos[0], heredadas) == ["V1.0"]
+
+
+def test_fragmento_heredado_lleva_una_nota_de_version(monkeypatch):
+    import numpy as np
+    from services import retrieval
+
+    vector = np.ones(4, dtype=np.float32) / 2
+    fragmentos = [
+        {
+            "chunk_id": "HTM240-PRC-003_v1.0_SUSTITUIDO.pdf_1", "categoria": "Manual",
+            "texto": "El resto de pasos de esta versión obsoleta coincide sustancialmente con la versión vigente.",
+            "versiones": ["V1.0"], "vector": vector, "pagina": 1, "seccion": None,
+        },
+        {
+            "chunk_id": "HTM240-PRC-003_Verificacion.pdf_8", "categoria": "Manual",
+            "texto": "Pasos 1. Verificar...", "versiones": ["V1.1", "V2.0"], "vector": vector,
+            "pagina": 1, "seccion": "Pasos",
+        },
+    ]
+    monkeypatch.setattr(retrieval, "cargar_fragmentos", lambda: [dict(f) for f in fragmentos])
+    monkeypatch.setattr(retrieval, "embedding_normalizado", lambda _texto: vector)
+    monkeypatch.setattr(retrieval, "settings", type("S", (), {
+        "rag_hybrid_retrieval_enabled": False, "rag_component_anchor_enabled": False,
+        "rag_combined_reranking_enabled": False, "rag_rrf_k": 60,
+    })())
+
+    resultados = {r["chunk_id"]: r for r in retrieval.buscar_fragmentos("bomba", "V1.0", 5)}
+
+    assert "HTM240-PRC-003" in resultados["HTM240-PRC-003_Verificacion.pdf_8"]["nota_version"]
+    assert resultados["HTM240-PRC-003_v1.0_SUSTITUIDO.pdf_1"]["nota_version"] is None

@@ -6,8 +6,12 @@
 const SECCION_FUENTE = /\n#{1,6}\s*FUENTES?\b[\s\S]*$/i;
 const LINEA_FUENTE = /\n+\*{0,2}FUENTES?(?:\s*:\s*\*{0,2}|\*{0,2}\s*:)[^\n]*(?:\n(?!\n)[^\n]*)*/gi;
 
+// Marcas de fragmento dentro del texto ("[F1]", "[F1, F3]", "(F2)"): las fichas de fuentes no
+// muestran esos números, así que al usuario no le dicen nada.
+const MARCA_FRAGMENTO = /[ \t]*[[(]F\d+(?:\s*,\s*F?\d+)*[\])]/g;
+
 export function stripSourceReferences(content: string): string {
-  return content.replace(SECCION_FUENTE, '').replace(LINEA_FUENTE, '').trimEnd();
+  return content.replace(SECCION_FUENTE, '').replace(LINEA_FUENTE, '').replace(MARCA_FRAGMENTO, '').trimEnd();
 }
 
 interface AnswerSection {

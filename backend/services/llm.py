@@ -21,6 +21,7 @@ from config import settings
 from .embeddings import embedding_normalizado
 from .prompts import formatear_historial
 from .retrieval import cargar_fragmentos
+from .texto import limpiar_salida_llm
 
 logger = logging.getLogger(__name__)
 
@@ -62,12 +63,15 @@ def _llamar_groq(
     verificacion: bool = False,
     max_completion_tokens_override: int | None = None,
     reasoning_effort_override: str | None = None,
+    json: bool = False,
 ) -> str:
     """Realiza una llamada a Groq y traduce sus errores a LLMServiceError.
 
     Para verificaciones estructuradas se puede reducir el presupuesto de salida y
     usar el nivel mínimo de razonamiento admitido por Groq (low). Si Groq devuelve un 429 con una espera
     transitoria explícita inferior a 1,5 s, se hace un único reintento acotado.
+    Con `json=True` se activa el modo JSON de Groq: la salida siempre es JSON válido
+    (sin él, una comilla sin escapar en una cita rompía la verificación y R07).
     """
     from .errores_llm import LLMServiceError, clasificar_error_groq
 
@@ -97,6 +101,7 @@ def _llamar_groq(
                     messages=[{"role": "user", "content": prompt}],
                     max_completion_tokens=limite_tokens,
                     reasoning_effort=esfuerzo,
+                    response_format={"type": "json_object"} if json else omit,
                 )
                 break
             except Exception as exc:
@@ -118,7 +123,7 @@ def _llamar_groq(
         opciones = getattr(respuesta, "choices", None) or []
         mensaje = getattr(opciones[0], "message", None) if opciones else None
         contenido = getattr(mensaje, "content", None)
-        return contenido.strip() if isinstance(contenido, str) else ""
+        return limpiar_salida_llm(contenido).strip() if isinstance(contenido, str) else ""
 
     except LLMServiceError:
         raise
@@ -145,7 +150,7 @@ def generar_verificacion(prompt: str) -> str:
     """
     from .errores_llm import LLMServiceError
 
-    texto = _llamar_groq(prompt, verificacion=True)
+    texto = _llamar_groq(prompt, verificacion=True, json=True)
     if not texto:
         raise LLMServiceError(
             "empty_verification_response",
@@ -166,8 +171,11 @@ def generar_evaluacion_suficiencia(prompt: str) -> str:
     texto = _llamar_groq(
         prompt,
         verificacion=True,
-        max_completion_tokens_override=700,
+        # Incluye el razonamiento interno de gpt-oss y citas literales: con 700 el JSON
+        # se cortaba a medias y R07 fallaba.
+        max_completion_tokens_override=1500,
         reasoning_effort_override="low",
+        json=True,
     )
     if not texto:
         raise LLMServiceError(
@@ -190,7 +198,10 @@ def reformular_con_historial(mensaje: str, historial: list[dict]) -> str:
     prompt = (
         "Dada la conversación anterior y la nueva pregunta, reescribe la nueva pregunta "
         "para que se entienda sin la conversación (sustituye 'eso', 'lo', 'y si...' por "
-        "lo que corresponda). Si ya se entiende sola, devuélvela igual.\n"
+        "lo que corresponda).\n"
+        "Si la nueva pregunta ya se entiende sola, devuélvela EXACTAMENTE igual, sin "
+        "cambiar ninguna palabra: no la parafrasees (cambiar «cada cuántos km» por «con "
+        "qué frecuencia» empeora la búsqueda).\n"
         "Devuelve ÚNICAMENTE la pregunta reescrita.\n\n"
         f"Conversación:\n{formatear_historial(historial)}\n\n"
         f"Nueva pregunta: {mensaje}\n\n"
@@ -239,8 +250,12 @@ def traducir_consulta(mensaje: str) -> str:
             "Eres un asistente técnico de automoción. Reescribe la siguiente consulta "
             "coloquial añadiendo la terminología técnica oficial, códigos de componentes (CMP-XX), "
             "testigos (TES-XX) o DTC (HTM-XXXX) que aparezcan en el glosario adjunto.\n"
-            "REGLA ESTRICTA: Conserva todos los códigos y datos originales de la pregunta y "
-            "devuelve ÚNICAMENTE la consulta enriquecida en una sola frase, sin comillas ni explicaciones.\n\n"
+            "REGLAS ESTRICTAS:\n"
+            "- Conserva todos los códigos y datos originales de la pregunta.\n"
+            "- Añade solo términos del glosario que nombren lo MISMO que ya pregunta el usuario.\n"
+            "- NO respondas a la pregunta: no añadas pasos, comprobaciones, causas, valores ni "
+            "componentes que el usuario no mencione (eso desvía la búsqueda).\n"
+            "- Devuelve ÚNICAMENTE la consulta enriquecida en una sola frase, sin comillas ni explicaciones.\n\n"
             f"Glosario aplicable:\n{glosario_contexto}\n\n"
             f"Consulta original: {mensaje}\n\n"
             "Consulta técnica enriquecida:"
@@ -249,6 +264,9 @@ def traducir_consulta(mensaje: str) -> str:
         consulta_reescrita = generar_respuesta(prompt_traduccion).strip()
 
         if not consulta_reescrita or "No hay evidencia suficiente" in consulta_reescrita:
+            return mensaje
+        # Si el modelo no ha añadido nada, no se duplica la pregunta: "X (X)".
+        if " ".join(consulta_reescrita.split()).casefold() == " ".join(mensaje.split()).casefold():
             return mensaje
 
         # Mantenemos el mensaje original + la traducción técnica para no perder palabras clave en la búsqueda

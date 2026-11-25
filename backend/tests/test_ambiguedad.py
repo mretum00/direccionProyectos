@@ -232,3 +232,33 @@ def test_aclaracion_de_mantenimiento_da_ejemplos_con_identificadores_documentado
     assert resultado is not None
     assert "CMP-24" in resultado["message"]
     assert "CMP-09" in resultado["message"]
+
+
+def test_pregunta_nueva_tras_aclaracion_no_se_trata_como_respuesta():
+    from services.ambiguedad import responde_a_aclaracion
+
+    historial = [
+        {"role": "user", "content": "¿Cómo reviso la bomba?"},
+        {
+            "role": "assistant",
+            "content": "¿A cuál bomba te refieres: CMP-01, CMP-02 o CMP-03?",
+            "clarification_kind": "technical",
+        },
+    ]
+    assert responde_a_aclaracion("¿Qué significa el código HTM-0142?", historial) is False
+    assert responde_a_aclaracion("No sé", historial) is True
+    assert responde_a_aclaracion("La CMP-02", historial) is True
+
+
+def test_aclaracion_repetida_conserva_la_pregunta_original():
+    aclaracion = "¿A cuál bomba te refieres: CMP-01, CMP-02 o CMP-03?"
+    historial = [
+        {"role": "user", "content": "¿Cómo reviso la bomba?"},
+        {"role": "assistant", "content": aclaracion, "clarification_kind": "technical"},
+        {"role": "user", "content": "No sé"},
+        {"role": "assistant", "content": aclaracion, "clarification_kind": "technical"},
+    ]
+    consulta = consulta_autonoma_tras_aclaracion("La CMP-02", historial)
+    assert consulta is not None
+    assert consulta.startswith("¿Cómo reviso la bomba?")
+    assert "No sé" not in consulta

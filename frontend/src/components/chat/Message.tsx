@@ -1,10 +1,12 @@
-import { memo } from 'react';
+import { memo, type ReactNode } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { User, Bot, AlertTriangle, Settings2, CheckCircle2, AlertCircle, CircleHelp } from 'lucide-react';
+import { User, Bot, Settings2, CircleHelp, SearchX } from 'lucide-react';
 import { useAppStore } from '@/store/appStore';
-import type { ChatMessage, SafetyAlert, ClaimVerification, ClaimCheck, EvidenceSufficiency, RequestedEvidenceStatus, Source, ClarificationKind } from '@/types/chat';
+import type { AnswerMeta, ChatMessage, ClarificationKind } from '@/types/chat';
 import { EvidencePanel } from '@/components/sources/EvidencePanel';
+import { Callout, CalloutButton } from '@/components/ui/Callout';
 import { ReasoningSteps } from './ReasoningSteps';
+import { ClaimsCheck, SafetyAlerts, SufficiencyCheck } from './Checks';
 import { parseAnswer, stripSourceReferences, type ParsedAnswer } from '@/utils/answer';
 
 // Estilos del markdown definidos como variantes de Tailwind sobre el contenedor:
@@ -15,37 +17,39 @@ const MARKDOWN_CLASSES = [
   '[&_ul]:list-disc [&_ul]:pl-5 [&_ul]:space-y-1',
   '[&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:space-y-1',
   '[&_strong]:font-semibold [&_strong]:text-texto',
+  // Citas literales de la documentación: mismo estilo que en las comprobaciones automáticas.
+  '[&_blockquote]:border-l-2 [&_blockquote]:border-contraste/20 [&_blockquote]:pl-3 [&_blockquote]:my-2 [&_blockquote_p]:text-xs [&_blockquote_p]:italic [&_blockquote_p]:text-texto-400',
   // Códigos y referencias (HTM-0142, CMP-02...) en monoespaciada para distinguirlos del texto.
   '[&_code]:font-mono [&_code]:text-[0.875em] [&_code]:text-marca-300 [&_code]:bg-contraste/10 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded',
 ].join(' ');
 
+function Markdown({ children }: { children: string }) {
+  return (
+    <div className={MARKDOWN_CLASSES}>
+      <ReactMarkdown>{children}</ReactMarkdown>
+    </div>
+  );
+}
+
 const isSummary = (title: string) => title.toUpperCase() === 'RESUMEN';
 
 /**
- * Respuesta con esquema: primero el resumen como texto de entrada (sin etiqueta, con la misma
- * tipografía que el resto) y debajo cada sección (CAUSAS POSIBLES, CRITICIDAD, SEGURIDAD...)
- * con su título encima del contenido. Sin recuadros ni columnas: se lee de arriba abajo.
+ * Respuesta con esquema: primero el resumen como texto de entrada (sin etiqueta) y debajo
+ * cada sección (CAUSAS POSIBLES, CRITICIDAD, SEGURIDAD...) con su título encima.
  * Las respuestas directas, sin encabezados, se muestran como texto normal.
  */
 function StructuredAnswer({ intro, sections }: ParsedAnswer) {
+  if (sections.length === 0) return <Markdown>{intro}</Markdown>;
   return (
     <div className="space-y-6">
-      {intro && (
-        <div className={MARKDOWN_CLASSES}>
-          <ReactMarkdown>{intro}</ReactMarkdown>
-        </div>
-      )}
+      {intro && <Markdown>{intro}</Markdown>}
       {sections.map(({ title, body }) =>
         isSummary(title) ? (
-          <div key={title} className={MARKDOWN_CLASSES}>
-            <ReactMarkdown>{body}</ReactMarkdown>
-          </div>
+          <Markdown key={title}>{body}</Markdown>
         ) : (
           <section key={title} className="space-y-2">
             <h3 className="text-[11px] font-bold uppercase tracking-wider text-marca-400">{title}</h3>
-            <div className={MARKDOWN_CLASSES}>
-              <ReactMarkdown>{body}</ReactMarkdown>
-            </div>
+            <Markdown>{body}</Markdown>
           </section>
         ),
       )}
@@ -53,337 +57,117 @@ function StructuredAnswer({ intro, sections }: ParsedAnswer) {
   );
 }
 
-interface MessageProps {
-  message: ChatMessage;
+// --- Aclaraciones ---------------------------------------------------------------------------
+
+const CLARIFICATIONS: Record<ClarificationKind, { title: string; action?: string }> = {
+  engine_version: { title: 'Elige la versión del motor', action: 'Abrir selector de motor' },
+  version_mismatch: { title: 'La versión no coincide', action: 'Cambiar versión seleccionada' },
+  version_comparison: { title: 'Necesito una sola versión', action: 'Elegir una versión' },
+  technical: { title: 'Necesito una aclaración' },
+};
+
+/** El asistente necesita un dato antes de buscar. Si es la versión, el botón abre el selector. */
+function Clarification({ content, kind = 'engine_version' }: { content: string; kind?: ClarificationKind }) {
+  const { setEngineSelectorOpen } = useAppStore();
+  const { title, action } = CLARIFICATIONS[kind];
+  return (
+    <Callout tone="info" icon={CircleHelp} title={title}>
+      <Markdown>{content}</Markdown>
+      {action && (
+        <CalloutButton tone="info" icon={Settings2} onClick={() => setEngineSelectorOpen(true)}>
+          {action}
+        </CalloutButton>
+      )}
+    </Callout>
+  );
+}
+
+// --- Estructura común de los mensajes del asistente ------------------------------------------
+
+/** Avatar del asistente y columna de contenido: igual para todos sus mensajes. */
+function AssistantRow({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex justify-start animate-in">
+      <div className="flex items-start gap-2.5 max-w-[88%] w-full">
+        <div className="icono-marca w-8 h-8 rounded-full">
+          <Bot className="w-4 h-4 text-sobre-marca" />
+        </div>
+        <div className="flex-1 min-w-0 space-y-4 pt-1">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+type AssistantKind = 'clarification' | 'no_evidence' | 'answer';
+
+function kindOf(response?: AnswerMeta): AssistantKind {
+  if (response?.needs_clarification) return 'clarification';
+  if (response?.evidence_status === 'insufficient' && !response.sources?.length) return 'no_evidence';
+  return 'answer';
 }
 
 /**
- * Aviso destacado en ámbar cuando el backend no ha podido responder porque falta la versión o no
- * la reconoce. El texto es el del backend (explica qué falta); el botón abre el selector.
+ * Mensaje del asistente. Sea cual sea el tipo, el orden es siempre el mismo:
+ *   1. avisos de seguridad
+ *   2. pasos seguidos (si ha llegado a buscar)
+ *   3. contenido: aclaración, aviso de falta de evidencia o respuesta
+ *   4. comprobaciones automáticas (cobertura y revisión de afirmaciones)
+ *   5. fuentes
  */
-function ClarificationMessage({
-  content,
-  kind = 'engine_version',
-}: {
-  content: string;
-  kind?: ClarificationKind;
-}) {
-  const { setEngineSelectorOpen } = useAppStore();
-  const needsEngineSelector =
-    kind === 'engine_version' || kind === 'version_mismatch' || kind === 'version_comparison';
-  const clarificationTitle =
-    kind === 'engine_version'
-      ? 'Falta configurar tu consulta'
-      : kind === 'version_mismatch'
-        ? 'La versión no coincide'
-        : kind === 'version_comparison'
-          ? 'Necesito una sola versión'
-          : 'Necesito una aclaración';
-  const selectorLabel =
-    kind === 'version_mismatch'
-      ? 'Cambiar versión seleccionada'
-      : kind === 'version_comparison'
-        ? 'Elegir una versión'
-        : 'Abrir selector de motor';
+function AssistantMessage({ message }: { message: ChatMessage }) {
+  const response = message.response;
+  const kind = kindOf(response);
+  const sources = response?.sources ?? [];
+  const steps = response?.steps ?? [];
 
   return (
-    <div className="flex justify-start animate-in">
-      <div className="flex items-start gap-2.5 max-w-[88%] w-full">
-        <div className="icono-marca w-8 h-8 rounded-full">
-          <Bot className="w-4 h-4 text-sobre-marca" />
-        </div>
+    <AssistantRow>
+      <SafetyAlerts alerts={response?.safety_alerts ?? []} />
 
-        <div className="flex-1 min-w-0 rounded-2xl rounded-tl-sm bg-aviso-500/10 border border-aviso-500/30 px-4 py-3 space-y-3">
-          <div className="flex items-center gap-2 text-aviso-400 text-[11px] font-semibold uppercase tracking-wider">
-            <AlertTriangle className="w-4 h-4" />
-            {clarificationTitle}
-          </div>
-          <p className="text-sm text-texto-300 leading-relaxed">{content}</p>
-          {needsEngineSelector && (
-            <button
-              type="button"
-              onClick={() => setEngineSelectorOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-aviso-500/20 text-aviso-300 text-xs font-medium hover:bg-aviso-500/30 transition-colors"
-            >
-              <Settings2 className="w-3.5 h-3.5" />
-              {selectorLabel}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+      {steps.length > 0 && <ReasoningSteps steps={steps} />}
 
-function SafetyAlertsPanel({ alerts }: { alerts: SafetyAlert[] }) {
-  if (alerts.length === 0) return null;
+      {kind === 'clarification' && <Clarification content={message.content} kind={response?.clarification_kind} />}
 
-  return (
-    <div className="space-y-2" aria-label="Avisos de seguridad">
-      {alerts.map((alert) => {
-        const critical = alert.severity === 'critical';
-        return (
-          <aside
-            key={alert.code}
-            role={critical ? 'alert' : 'note'}
-            aria-live={critical ? 'assertive' : 'polite'}
-            className={
-              critical
-                ? 'rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-red-100'
-                : 'rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-amber-100'
-            }
-          >
-            <div className="mb-1 flex items-center gap-2 text-xs font-bold uppercase tracking-wide">
-              <AlertTriangle className="h-4 w-4 shrink-0" />
-              {alert.title}
-            </div>
-            <p className="text-sm leading-relaxed">{alert.message}</p>
-          </aside>
-        );
-      })}
-    </div>
-  );
-}
-
-function EvidenceSufficiencyPanel({ sufficiency }: { sufficiency?: EvidenceSufficiency }) {
-  if (!sufficiency || sufficiency.status === 'not_run') return null;
-
-  const unavailable = sufficiency.status === 'unavailable';
-  const sufficient = sufficiency.status === 'sufficient';
-  const labels: Record<RequestedEvidenceStatus, string> = {
-    supported: 'Respaldado',
-    not_found: 'No localizado',
-    uncertain: 'No concluyente',
-    conflicting: 'Información contradictoria',
-  };
-  const classes: Record<RequestedEvidenceStatus, string> = {
-    supported: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20',
-    not_found: 'text-amber-300 bg-amber-500/10 border-amber-500/20',
-    uncertain: 'text-amber-300 bg-amber-500/10 border-amber-500/20',
-    conflicting: 'text-red-300 bg-red-500/10 border-red-500/20',
-  };
-  const heading = unavailable
-    ? 'Comprobación de cobertura no disponible'
-    : sufficient
-      ? 'Cobertura documental completa'
-      : sufficiency.status === 'partial'
-        ? 'Cobertura documental parcial'
-        : 'Información no documentada';
-  const summary = unavailable
-    ? 'No se pudo comprobar si los extractos contienen los datos solicitados. Por precaución, no se ha generado una respuesta técnica.'
-    : `${sufficiency.requested_items.filter((item) => item.status === 'supported').length} de ${sufficiency.requested_items.length} datos solicitados tienen una cita localizada en los fragmentos recuperados.`;
-
-  return (
-    <aside
-      className={`rounded-xl border px-4 py-3 space-y-3 ${
-        sufficient
-          ? 'border-emerald-500/25 bg-emerald-500/5'
-          : 'border-amber-500/30 bg-amber-500/5'
-      }`}
-      aria-label="Comprobación de suficiencia documental"
-    >
-      <div className="flex items-center gap-2">
-        {sufficient ? (
-          <CheckCircle2 className="h-4 w-4 text-emerald-300 shrink-0" />
-        ) : (
-          <AlertCircle className="h-4 w-4 text-amber-300 shrink-0" />
-        )}
-        <h3 className="text-xs font-bold uppercase tracking-wide text-texto-100">{heading}</h3>
-      </div>
-      <p className="text-xs text-texto-300 leading-relaxed">{summary}</p>
-      {sufficiency.requested_items.length > 0 && (
-        <div className="space-y-2">
-          {sufficiency.requested_items.map((item, index) => (
-            <div key={`${index}-${item.item}`} className="rounded-lg border border-contraste/40 bg-fondo/50 p-3 space-y-2">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-texto-100">{item.item}</span>
-                <span className={`text-[10px] px-2 py-1 rounded-full border ${classes[item.status]}`}>
-                  {labels[item.status]}
-                </span>
-              </div>
-              {item.evidence_excerpt && (
-                <blockquote className="border-l-2 border-emerald-500/40 pl-3 text-xs text-texto-300">
-                  “{item.evidence_excerpt}”
-                </blockquote>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-      <p className="text-[11px] text-texto-400 leading-relaxed">
-        La comprobación es automática y orientativa. La existencia de una cita literal no demuestra por sí sola que la interpretación sea correcta; contrasta siempre los datos técnicos con la documentación original.
-      </p>
-    </aside>
-  );
-}
-
-function ClaimVerificationPanel({
-  verification,
-  sources,
-}: {
-  verification?: ClaimVerification;
-  sources?: Source[];
-}) {
-  if (!verification || verification.status === 'not_run' || verification.status === 'no_claims') {
-    return null;
-  }
-
-  const reviewed = verification.status === 'reviewed';
-  const unavailable = verification.status === 'unavailable';
-  const restricted = verification.answer_restricted === true;
-  const blocked = restricted && verification.claims_supported === 0;
-  const summary = unavailable
-    ? 'No se pudo completar la revisión automática.'
-    : blocked
-      ? 'No se ha mostrado la respuesta técnica generada porque ninguna afirmación obtuvo una cita literal validada en los fragmentos recuperados.'
-      : restricted
-        ? 'La respuesta se ha limitado a las afirmaciones con una cita literal validada. Las demás se han omitido para evitar presentar datos no confirmados.'
-        : `${verification.claims_supported} de ${verification.claims_total} afirmaciones tienen un extracto localizado que el revisor considera compatible.`;
-
-  const statusLabels: Record<ClaimCheck['status'], string> = {
-    supported: 'Respaldo localizado',
-    conflicting: 'Posible contradicción',
-    not_found: 'Sin respaldo localizado',
-    uncertain: 'Resultado no concluyente',
-    unverified: 'No verificada',
-  };
-
-  const statusClasses: Record<ClaimCheck['status'], string> = {
-    supported: 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20',
-    conflicting: 'text-red-300 bg-red-500/10 border-red-500/20',
-    not_found: 'text-amber-300 bg-amber-500/10 border-amber-500/20',
-    uncertain: 'text-amber-300 bg-amber-500/10 border-amber-500/20',
-    unverified: 'text-amber-300 bg-amber-500/10 border-amber-500/20',
-  };
-
-  return (
-    <aside
-      className={`rounded-xl border px-4 py-3 space-y-3 ${
-        reviewed
-          ? 'border-emerald-500/25 bg-emerald-500/5'
-          : 'border-amber-500/30 bg-amber-500/5'
-      }`}
-      aria-label="Revisión automática de afirmaciones"
-    >
-      <div className="flex items-center gap-2">
-        {reviewed ? (
-          <CheckCircle2 className="h-4 w-4 text-emerald-300 shrink-0" />
-        ) : unavailable ? (
-          <CircleHelp className="h-4 w-4 text-amber-300 shrink-0" />
-        ) : (
-          <AlertCircle className="h-4 w-4 text-amber-300 shrink-0" />
-        )}
-        <h3 className="text-xs font-bold uppercase tracking-wide text-texto-100">
-          Revisión automática de afirmaciones
-        </h3>
-        <span className={`ml-auto text-[10px] px-2 py-1 rounded-full border ${reviewed ? 'text-emerald-300 bg-emerald-500/10 border-emerald-500/20' : 'text-amber-300 bg-amber-500/10 border-amber-500/20'}`}>
-          {reviewed ? 'Respaldo localizado' : unavailable ? 'No disponible' : blocked ? 'Respuesta bloqueada' : restricted ? 'Respuesta limitada' : 'Requiere revisión'}
-        </span>
-      </div>
-
-      <p className="text-xs text-texto-300 leading-relaxed">{summary}</p>
-
-      {verification.claims.length > 0 && (
-        <div className="space-y-2">
-          {verification.claims.map((claim, index) => {
-            const documents = (claim.source_ids ?? [])
-              .map((id) => sources?.find((source) => source.id === id)?.document)
-              .filter((name): name is string => Boolean(name));
-            return (
-              <div key={`${index}-${claim.claim}`} className="rounded-lg border border-contraste/40 bg-fondo/50 p-3 space-y-2">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-sm font-medium text-texto-100">{claim.claim}</span>
-                  <span className={`text-[10px] px-2 py-1 rounded-full border ${statusClasses[claim.status]}`}>
-                    {statusLabels[claim.status]}
-                  </span>
-                </div>
-                {claim.evidence_excerpt && (
-                  <blockquote className="border-l-2 border-emerald-500/40 pl-3 text-xs text-texto-300">
-                    “{claim.evidence_excerpt}”
-                  </blockquote>
-                )}
-                {documents.length > 0 && (
-                  <p className="text-[11px] text-texto-400">Fuentes: {Array.from(new Set(documents)).join(', ')}</p>
-                )}
-              </div>
-            );
-          })}
-        </div>
+      {kind === 'no_evidence' && (
+        <Callout tone="warning" icon={SearchX} title="Sin evidencia suficiente">
+          <Markdown>{message.content}</Markdown>
+        </Callout>
       )}
 
-      <p className="text-[11px] text-texto-400 leading-relaxed">
-        Esta revisión automática es orientativa y analiza hasta 12 afirmaciones identificadas; puede no detectar todas. Localizar un extracto coincidente no demuestra por sí solo que toda la afirmación sea correcta. En procedimientos críticos, contrasta siempre la documentación y solicita revisión cualificada.
-      </p>
-    </aside>
+      {kind === 'answer' && (
+        <StructuredAnswer {...parseAnswer(sources.length > 0 ? stripSourceReferences(message.content) : message.content)} />
+      )}
+
+      {/* Sin evidencia, el propio aviso ya explica qué datos faltan: no se repite la cobertura. */}
+      {kind === 'answer' && (
+        <>
+          <SufficiencyCheck sufficiency={response?.evidence_sufficiency} />
+          <ClaimsCheck verification={response?.claim_verification} sources={sources} />
+        </>
+      )}
+
+      {sources.length > 0 && <EvidencePanel sources={sources} />}
+    </AssistantRow>
   );
 }
 
-function MessageComponent({ message }: MessageProps) {
-  if (message.role === 'user') {
-    return (
-      <div className="flex justify-end animate-in">
-        <div className="flex items-start gap-2.5 max-w-[80%]">
-          <div className="rounded-2xl rounded-tr-sm bg-marca-500/15 border border-marca-500/20 px-4 py-2.5">
-            <p className="text-sm leading-relaxed text-texto-100 whitespace-pre-wrap">{message.content}</p>
-          </div>
-          <div className="w-8 h-8 rounded-full bg-marca-500/20 flex items-center justify-center flex-shrink-0">
-            <User className="w-4 h-4 text-marca-400" />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const safetyAlerts = message.response?.safety_alerts ?? [];
-
-  if (message.response?.needs_clarification) {
-    return (
-      <div className="space-y-3">
-        <SafetyAlertsPanel alerts={safetyAlerts} />
-        <ClarificationMessage
-          content={message.content}
-          kind={message.response?.clarification_kind}
-        />
-      </div>
-    );
-  }
-
-  const sources = message.response?.sources;
-  const hasSources = !!sources && sources.length > 0;
-  const answer = parseAnswer(hasSources ? stripSourceReferences(message.content) : message.content);
-
+function UserMessage({ content }: { content: string }) {
   return (
-    <div className="flex justify-start animate-in">
-      <div className="flex items-start gap-2.5 max-w-[88%] w-full">
-        <div className="icono-marca w-8 h-8 rounded-full">
-          <Bot className="w-4 h-4 text-sobre-marca" />
+    <div className="flex justify-end animate-in">
+      <div className="flex items-start gap-2.5 max-w-[80%]">
+        <div className="rounded-2xl rounded-tr-sm bg-marca-500/15 border border-marca-500/20 px-4 py-2.5">
+          <p className="text-sm leading-relaxed text-texto-100 whitespace-pre-wrap">{content}</p>
         </div>
-
-        <div className="flex-1 min-w-0 space-y-3 pt-1">
-          <SafetyAlertsPanel alerts={safetyAlerts} />
-          {message.response?.steps && message.response.steps.length > 0 && (
-            <div className="pb-3 border-b border-contraste/5">
-              <ReasoningSteps steps={message.response.steps} />
-            </div>
-          )}
-          {answer.sections.length > 0 ? (
-            <StructuredAnswer {...answer} />
-          ) : (
-            <div className={MARKDOWN_CLASSES}>
-              <ReactMarkdown>{answer.intro}</ReactMarkdown>
-            </div>
-          )}
-
-          <EvidenceSufficiencyPanel sufficiency={message.response?.evidence_sufficiency} />
-          <ClaimVerificationPanel
-            verification={message.response?.claim_verification}
-            sources={sources}
-          />
-          {hasSources && <EvidencePanel sources={sources} />}
+        <div className="w-8 h-8 rounded-full bg-marca-500/20 flex items-center justify-center flex-shrink-0">
+          <User className="w-4 h-4 text-marca-400" />
         </div>
       </div>
     </div>
   );
+}
+
+function MessageComponent({ message }: { message: ChatMessage }) {
+  return message.role === 'user' ? <UserMessage content={message.content} /> : <AssistantMessage message={message} />;
 }
 
 // Los mensajes ya enviados no cambian: memo evita re-renderizar (y re-parsear

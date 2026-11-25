@@ -54,6 +54,46 @@ def test_pipeline_incluye_pasos_operativos_y_suficiencia_r07(monkeypatch):
     resultado = rag_pipeline.armar_respuesta("¿Qué caudal tiene CMP-02?", "V2.0", "mechanic", [])
 
     assert resultado["evidence_sufficiency"]["status"] == "sufficient"
-    assert [step["kind"] for step in resultado["steps"]] == ["query", "search", "analysis", "conclusion"]
-    assert resultado["steps"][1]["fragments"][0]["used"] is True
-    assert resultado["steps"][2]["title"] == "Cobertura documental completa"
+    assert [step["kind"] for step in resultado["steps"]] == ["checks", "query", "search", "analysis", "conclusion"]
+    assert resultado["steps"][0]["title"] == "Comprobaciones previas superadas"
+    assert resultado["steps"][2]["fragments"][0]["used"] is True
+    assert resultado["steps"][3]["title"] == "Cobertura documental completa"
+
+
+def test_aclaracion_de_version_muestra_la_comprobacion_que_la_detuvo():
+    resultado = rag_pipeline.armar_respuesta("¿Qué significa HTM-0142 en V1.0?", "V2.0", "mechanic", [])
+
+    assert resultado["needs_clarification"] is True
+    [paso] = resultado["steps"]
+    assert paso["kind"] == "checks"
+    assert paso["title"] == "Comprobaciones previas: falta un dato"
+    assert [punto["status"] for punto in paso["points"]] == ["ok", "stop"]
+    assert "V1.0" in paso["points"][1]["text"]
+
+
+def test_respuesta_a_aclaracion_aparece_como_aclaracion_aplicada(monkeypatch):
+    from types import SimpleNamespace
+
+    historial = [
+        {"role": "user", "content": "¿Cómo compruebo la bomba auxiliar?"},
+        {
+            "role": "assistant",
+            "content": "¿A cuál te refieres: bomba A (CMP-02) o bomba B (CMP-03)?",
+            "clarification_kind": "technical",
+        },
+    ]
+    monkeypatch.setattr(rag_pipeline, "traducir_consulta", lambda mensaje: mensaje)
+    monkeypatch.setattr(rag_pipeline, "buscar_fragmentos", lambda *_: [{"chunk_id": "A_1", "score": 0.8}])
+    monkeypatch.setattr(rag_pipeline, "construir_prompt", lambda *_: "prompt")
+    monkeypatch.setattr(rag_pipeline, "generar_respuesta", lambda _prompt: "Respuesta")
+    monkeypatch.setattr(rag_pipeline, "construir_fuentes", lambda *_: [])
+    monkeypatch.setattr(rag_pipeline, "settings", SimpleNamespace(
+        rag_top_k=5, rag_evidence_min_score=0.3, rag_evidence_high_score=0.5,
+        rag_ambiguity_detection_enabled=True,
+    ))
+
+    resultado = rag_pipeline.armar_respuesta("La bomba A", "V2.0", "mechanic", historial)
+
+    etapas = [etapa["label"] for etapa in resultado["steps"][1]["stages"]]
+    assert etapas[:3] == ["Pregunta original", "Aclaración aplicada", "Pregunta completa"]
+    assert "Reformulada con el historial" not in etapas

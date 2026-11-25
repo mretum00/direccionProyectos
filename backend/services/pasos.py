@@ -43,6 +43,30 @@ def _referencia_fragmento(fragmento: dict[str, Any]) -> str:
     return f"{codigo} · pág. {pagina}" if pagina is not None else codigo
 
 
+def comprobacion(texto: str, estado: str) -> dict[str, Any]:
+    """Un resultado de las comprobaciones previas: "ok", "stop" (detiene) o "skipped"."""
+    return {"text": texto, "status": estado}
+
+
+def paso_comprobaciones(resultados: list[dict[str, Any]]) -> dict[str, Any]:
+    """Fase 0: lo que se comprueba antes de buscar (versión, coherencia, ambigüedad).
+
+    Si alguna comprobación detiene la consulta, el paso lo dice en su título: es el
+    único paso de las respuestas de aclaración.
+    """
+    detenida = any(resultado.get("status") == "stop" for resultado in resultados)
+    return {
+        "kind": "checks",
+        "title": "Comprobaciones previas: falta un dato" if detenida else "Comprobaciones previas superadas",
+        "detail": (
+            "La consulta se detuvo antes de buscar en la documentación para pedirte una aclaración."
+            if detenida
+            else "Antes de buscar se comprueba que la consulta es coherente y concreta."
+        ),
+        "points": resultados,
+    }
+
+
 def paso_transformacion(
     version: str,
     perfil: str,
@@ -50,12 +74,28 @@ def paso_transformacion(
     reformulada: str,
     consulta_tecnica: str,
     fecha: datetime | None = None,
+    aclaracion: str | None = None,
 ) -> dict[str, Any]:
-    """Describe cómo se preparó la consulta para la búsqueda."""
+    """Describe cómo se preparó la consulta para la búsqueda.
+
+    `aclaracion` es la opción que eligió el usuario al responder a una aclaración
+    técnica; entonces `reformulada` es su pregunta original con esa opción.
+    """
     fecha = (fecha or datetime.now().astimezone()).astimezone()
     etapas: list[dict[str, Any]] = [{"label": "Pregunta original", "text": original}]
 
-    if reformulada != original:
+    if aclaracion:
+        etapas.append({
+            "label": "Aclaración aplicada",
+            "text": aclaracion,
+            "note": "Opción que has elegido en la aclaración anterior.",
+        })
+        etapas.append({
+            "label": "Pregunta completa",
+            "text": reformulada,
+            "note": "Tu pregunta anterior con la opción elegida.",
+        })
+    elif reformulada != original:
         etapas.append({
             "label": "Reformulada con el historial",
             "text": reformulada,
@@ -123,6 +163,7 @@ def paso_busqueda(
             "section": fragmento.get("seccion"),
             "score": round(float(fragmento.get("score", 0.0)), 3),
             "used": chunk_id in utilizados,
+            "note": fragmento.get("nota_version"),
         })
 
     return {

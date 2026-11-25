@@ -30,7 +30,7 @@ export function SourceCard({ source, onView }: SourceCardProps) {
             <span
               className={`text-[10px] px-1.5 py-0.5 rounded flex-shrink-0 ${
                 source.citation_status === 'verified'
-                  ? 'bg-emerald-500/10 text-emerald-300'
+                  ? 'bg-exito-500/10 text-exito-300'
                   : source.citation_status === 'cited'
                     ? 'bg-marca-500/10 text-marca-300'
                     : 'bg-contraste/10 text-texto-500'

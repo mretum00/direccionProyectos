@@ -826,3 +826,87 @@ def test_pregunta_por_caudal_de_bomba_sin_identificar_pide_aclaracion(monkeypatc
     assert all(codigo in resultado["message"]["content"] for codigo in ("CMP-01", "CMP-02", "CMP-03"))
     assert resultado["sources"] == []
     assert resultado["documents_consulted"] == 0
+
+
+def test_pregunta_nueva_tras_aclaracion_tecnica_no_repite_la_aclaracion(monkeypatch):
+    historial = [
+        {"role": "user", "content": "¿Cómo reviso la bomba?"},
+        {
+            "role": "assistant",
+            "content": "¿A cuál bomba te refieres: CMP-01, CMP-02 o CMP-03?",
+            "clarification_kind": "technical",
+        },
+    ]
+    fragmentos = [{"chunk_id": "HTM240-DTC-001_1", "score": 0.8}]
+    monkeypatch.setattr(rag_pipeline, "reformular_con_historial", lambda mensaje, _historial: mensaje)
+    monkeypatch.setattr(rag_pipeline, "traducir_consulta", lambda mensaje: mensaje)
+    monkeypatch.setattr(rag_pipeline, "buscar_fragmentos", lambda *_: fragmentos)
+    monkeypatch.setattr(rag_pipeline, "construir_prompt", lambda *_: "prompt")
+    monkeypatch.setattr(rag_pipeline, "generar_respuesta", lambda _prompt: "HTM-0142 indica...")
+    monkeypatch.setattr(rag_pipeline, "construir_fuentes", lambda *_: [])
+    monkeypatch.setattr(rag_pipeline, "settings", SimpleNamespace(
+        rag_top_k=5, rag_evidence_min_score=0.3, rag_evidence_high_score=0.5,
+        rag_ambiguity_detection_enabled=True,
+    ))
+
+    resultado = rag_pipeline.armar_respuesta("¿Qué significa el código HTM-0142?", "V1.0", "mechanic", historial)
+
+    assert resultado["needs_clarification"] is False
+    assert resultado["message"]["content"] == "HTM-0142 indica..."
+
+
+def test_busqueda_tras_aclaracion_no_incluye_instrucciones_del_prompt(monkeypatch):
+    historial = [
+        {"role": "user", "content": "¿Cómo compruebo la bomba auxiliar?"},
+        {
+            "role": "assistant",
+            "content": "¿A cuál te refieres: bomba A (CMP-02) o bomba B (CMP-03)?",
+            "clarification_kind": "technical",
+        },
+    ]
+    buscadas: list[str] = []
+    prompts: list[str] = []
+    monkeypatch.setattr(rag_pipeline, "traducir_consulta", lambda mensaje: mensaje)
+    monkeypatch.setattr(
+        rag_pipeline, "buscar_fragmentos",
+        lambda consulta, *_: buscadas.append(consulta) or [{"chunk_id": "PRC-003_8", "score": 0.8}],
+    )
+    monkeypatch.setattr(rag_pipeline, "construir_prompt", lambda mensaje, *_: prompts.append(mensaje) or "prompt")
+    monkeypatch.setattr(rag_pipeline, "generar_respuesta", lambda _prompt: "Respuesta")
+    monkeypatch.setattr(rag_pipeline, "construir_fuentes", lambda *_: [])
+    monkeypatch.setattr(rag_pipeline, "settings", SimpleNamespace(
+        rag_top_k=5, rag_evidence_min_score=0.3, rag_evidence_high_score=0.5,
+        rag_ambiguity_detection_enabled=True,
+    ))
+
+    rag_pipeline.armar_respuesta("La bomba A", "V2.0", "mechanic", historial)
+
+    assert "CMP-02" in buscadas[0]
+    assert "no vuelvas a solicitarla" not in buscadas[0]
+    assert "no vuelvas a solicitarla" in prompts[0]
+
+
+def test_r07_sin_servicio_de_ia_devuelve_el_error_del_servicio(monkeypatch):
+    import pytest
+    from services.errores_llm import LLMServiceError
+
+    def sin_servicio(*_args, **_kwargs):
+        raise LLMServiceError("rate_limit", "El servicio de IA está saturado. Inténtalo más tarde.", http_status=429)
+
+    monkeypatch.setattr(rag_pipeline, "reformular_con_historial", lambda mensaje, _historial: mensaje)
+    monkeypatch.setattr(rag_pipeline, "traducir_consulta", lambda mensaje: mensaje)
+    monkeypatch.setattr(rag_pipeline, "buscar_fragmentos", lambda *_: [{"chunk_id": "A_1", "score": 0.8}])
+    monkeypatch.setattr(rag_pipeline, "anadir_notas_de_alcance", lambda _p, fragmentos, _v: fragmentos)
+    monkeypatch.setattr(rag_pipeline, "evaluar_suficiencia_evidencia", sin_servicio)
+    monkeypatch.setattr(rag_pipeline, "settings", SimpleNamespace(
+        rag_top_k=5, rag_evidence_min_score=0.3, rag_evidence_high_score=0.5,
+        rag_evidence_sufficiency_enabled=True,
+    ))
+
+    with pytest.raises(LLMServiceError):
+        rag_pipeline.armar_respuesta("¿Qué corriente tiene CMP-02?", "V1.0", "mechanic", [])
+
+    # Con un aviso de seguridad se responde igualmente para no perder el aviso.
+    resultado = rag_pipeline.armar_respuesta("Se ha encendido el testigo TES-05", "V1.0", "user", [])
+    assert resultado["safety_alerts"]
+    assert "No se ha podido generar" in resultado["message"]["content"]
