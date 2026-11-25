@@ -1,0 +1,229 @@
+{
+  "nombre": "ThermoDrive HTM-240 - Benchmark de comportamiento R06/R07",
+  "version": 1.0,
+  "total_casos": 16,
+  "descripcion": "Ocho consultas ambiguas que deben provocar una aclaración (R06) y ocho consultas sin respuesta documental que deben provocar abstención sin invención (R07). Este conjunto no se pasa a evaluar_retrieval.py porque no contiene secciones objetivo Hit@k.",
+  "notas_evaluacion": [
+    "R06: aclarar solo lo necesario antes de contestar. Para las consultas con version vacía, pedir la versión del sistema.",
+    "R07: reconocer qué dato no aparece en el corpus, no inventar una cifra o especificación y explicar la limitación.",
+    "Los casos R06/R07 se deben ejecutar en la aplicación después de implementar la lógica correspondiente; el fichero registra el comportamiento esperado, no afirma que la versión actual ya lo cumpla.",
+    "Los casos R07 usan V2.0 deliberadamente para no confundir una falta de versión con una falta de evidencia documental."
+  ],
+  "casos": [
+    {
+      "id": "R06-01-BOMBA-CAUDAL",
+      "requisito": "R06",
+      "tipo": "ambiguous",
+      "consulta": "¿Qué caudal nominal tiene la bomba?",
+      "version": "V2.0",
+      "accion_esperada": "clarify",
+      "aclaracion_necesaria": "Preguntar a qué bomba se refiere: CMP-01, CMP-02 o CMP-03.",
+      "motivo": "El catálogo contiene varias bombas con caudales nominales distintos.",
+      "referencias_de_contexto": [
+        "HTM240-CAT-001_Catalogo_componentes.pdf: CMP-01",
+        "HTM240-CAT-001_Catalogo_componentes.pdf: CMP-02",
+        "HTM240-CAT-001_Catalogo_componentes.pdf: CMP-03"
+      ]
+    },
+    {
+      "id": "R06-02-BOMBA-AUXILIAR",
+      "requisito": "R06",
+      "tipo": "ambiguous",
+      "consulta": "¿Cómo compruebo la bomba auxiliar?",
+      "version": "V2.0",
+      "accion_esperada": "clarify",
+      "aclaracion_necesaria": "Preguntar si se refiere a la bomba auxiliar A CMP-02 (batería) o a la bomba auxiliar B CMP-03 (electrónica de potencia).",
+      "motivo": "Hay dos bombas auxiliares dedicadas a circuitos distintos y los procedimientos/datos no son intercambiables.",
+      "referencias_de_contexto": [
+        "HTM240-CAT-001_Catalogo_componentes.pdf: CMP-02",
+        "HTM240-CAT-001_Catalogo_componentes.pdf: CMP-03"
+      ]
+    },
+    {
+      "id": "R06-03-SENSOR-TEMPERATURA",
+      "requisito": "R06",
+      "tipo": "ambiguous",
+      "consulta": "¿Cómo verifico el sensor de temperatura?",
+      "version": "V2.0",
+      "accion_esperada": "clarify",
+      "aclaracion_necesaria": "Preguntar qué sensor o circuito quiere comprobar: CMP-14, CMP-15, CMP-16 o CMP-20.",
+      "motivo": "El diccionario indica que la expresión genérica sensor de temperatura puede referirse a varios sensores según el circuito.",
+      "referencias_de_contexto": [
+        "HTM240-DIC-001_Diccionario_tecnico.pdf: Sensor de temperatura",
+        "HTM240-PRC-007_Verificacion_de_sensores_de_temperatura.pdf: Pasos"
+      ]
+    },
+    {
+      "id": "R06-04-TEMPERATURA-SISTEMA",
+      "requisito": "R06",
+      "tipo": "ambiguous",
+      "consulta": "La temperatura del sistema está fuera de rango. ¿Qué debería revisar?",
+      "version": "V2.0",
+      "accion_esperada": "clarify",
+      "aclaracion_necesaria": "Preguntar qué circuito o subsistema está afectado: motor CIR-01, batería CIR-02 o electrónica de potencia CIR-03; pedir el testigo/código si lo conoce.",
+      "motivo": "El sistema contiene tres circuitos térmicos con sensores, actuadores y diagnósticos diferentes.",
+      "referencias_de_contexto": [
+        "HTM240-MAN-001_Manual_general.pdf: 2. Arquitectura funcional",
+        "HTM240-ESQ-001_Esquemas_tecnicos.pdf: 1. Diagrama de arquitectura general"
+      ]
+    },
+    {
+      "id": "R06-05-HTM0142-SIN-VERSION",
+      "requisito": "R06",
+      "tipo": "ambiguous",
+      "consulta": "¿Qué significa el código HTM-0142?",
+      "version": "",
+      "accion_esperada": "clarify",
+      "aclaracion_necesaria": "Solicitar la versión del sistema (V1.0, V1.1 o V2.0) antes de interpretar el código.",
+      "motivo": "BOL-003 documenta que HTM-0142 cambia de significado según la versión.",
+      "referencias_de_contexto": [
+        "HTM240-BOL-003.pdf: Contenido",
+        "HTM240-DTC-001_Catalogo_DTC.pdf: HTM-0142"
+      ]
+    },
+    {
+      "id": "R06-06-TESTIGO-ROJO",
+      "requisito": "R06",
+      "tipo": "ambiguous",
+      "consulta": "Se ha encendido un testigo rojo. ¿Debo detenerme?",
+      "version": "V2.0",
+      "accion_esperada": "clarify",
+      "aclaracion_necesaria": "Preguntar qué identificador aparece (TES-01, TES-02 o TES-05) y si TES-01/TES-02 parpadea, mientras se comunica que TES-05 siempre exige parada segura.",
+      "motivo": "El manual distingue TES-01/TES-02 rojos parpadeantes y TES-05 rojo, con instrucciones de urgencia diferenciadas.",
+      "referencias_de_contexto": [
+        "HTM240-ADV-001_Testigos_y_mensajes.pdf: 1. Testigos del sistema ThermoDrive",
+        "HTM240-ADV-001_Testigos_y_mensajes.pdf: 3. Posibles combinaciones de testigos",
+        "HTM240-ADV-001_Testigos_y_mensajes.pdf: 4. Acciones inmediatas recomendadas por nivel de urgencia"
+      ]
+    },
+    {
+      "id": "R06-07-CALEFACCION-GENERICA",
+      "requisito": "R06",
+      "tipo": "ambiguous",
+      "consulta": "La calefacción no funciona. ¿Qué componente tengo que sustituir?",
+      "version": "V2.0",
+      "accion_esperada": "clarify",
+      "aclaracion_necesaria": "No recomendar sustitución directa; pedir síntomas/condiciones concretas y orientar al diagnóstico 4.6.",
+      "motivo": "El diccionario describe la avería de calefacción como una expresión general que puede tener varias causas y requiere diagnóstico.",
+      "referencias_de_contexto": [
+        "HTM240-DIC-001_Diccionario_tecnico.pdf: Se ha estropeado la calefacción",
+        "HTM240-DIA-001_Manual_diagnostico.pdf: 4.6 Calefacción insuficiente"
+      ]
+    },
+    {
+      "id": "R06-08-MANTENIMIENTO-GENERICO",
+      "requisito": "R06",
+      "tipo": "ambiguous",
+      "consulta": "¿Cada cuánto tengo que hacer el mantenimiento?",
+      "version": "V2.0",
+      "accion_esperada": "clarify",
+      "aclaracion_necesaria": "Preguntar qué elemento o intervención quiere consultar, por ejemplo refrigerante, filtro CMP-24, bomba auxiliar o electroventilador.",
+      "motivo": "El plan contiene múltiples tareas con intervalos diferentes.",
+      "referencias_de_contexto": [
+        "HTM240-MNT-001_Plan_mantenimiento.pdf: 1. Inspecciones periódicas por intervalo"
+      ]
+    },
+    {
+      "id": "R07-01-PAR-CMP24",
+      "requisito": "R07",
+      "tipo": "unanswerable",
+      "consulta": "¿Qué par de apriete exacto en Nm debo aplicar al alojamiento del filtro CMP-24?",
+      "version": "V2.0",
+      "accion_esperada": "abstain",
+      "dato_no_documentado": "El valor numérico del par de apriete. PRC-011 remite al valor especificado por el fabricante, pero no lo proporciona.",
+      "referencias_de_contexto": [
+        "HTM240-PRC-011_Sustitucion_del_filtro_del_circuito_de_bateria.pdf: Pasos"
+      ]
+    },
+    {
+      "id": "R07-02-COMPOSICION-REFRIGERANTE",
+      "requisito": "R07",
+      "tipo": "unanswerable",
+      "consulta": "¿Qué porcentaje de etilenglicol y qué proporción de inhibidores contiene el refrigerante ThermoGlyc HX-40?",
+      "version": "V2.0",
+      "accion_esperada": "abstain",
+      "dato_no_documentado": "La composición química y los porcentajes de sus componentes no están especificados en el corpus.",
+      "referencias_de_contexto": [
+        "HTM240-DIC-001_Diccionario_tecnico.pdf: El líquido refrigerante",
+        "HTM240-SEG-001_Manual_seguridad.pdf: 4. Riesgo químico"
+      ]
+    },
+    {
+      "id": "R07-03-CAPACIDAD-BATERIA",
+      "requisito": "R07",
+      "tipo": "unanswerable",
+      "consulta": "¿Cuál es la capacidad energética total del pack de batería ThermoDrive en kWh?",
+      "version": "V2.0",
+      "accion_esperada": "abstain",
+      "dato_no_documentado": "No se especifica una capacidad energética total en kWh para el pack de batería.",
+      "referencias_de_contexto": [
+        "HTM240-CAT-001_Catalogo_componentes.pdf: CMP-15",
+        "HTM240-DIC-001_Diccionario_tecnico.pdf: Pack de batería"
+      ]
+    },
+    {
+      "id": "R07-04-PINOUT-CMP26",
+      "requisito": "R07",
+      "tipo": "unanswerable",
+      "consulta": "¿Qué número de pin del conector CMP-26 corresponde a CAN-H y cuál a CAN-L?",
+      "version": "V2.0",
+      "accion_esperada": "abstain",
+      "dato_no_documentado": "El catálogo identifica CAN-H/CAN-L y la velocidad de 500 kbps, pero no asigna números de pin.",
+      "referencias_de_contexto": [
+        "HTM240-CAT-001_Catalogo_componentes.pdf: CMP-26",
+        "HTM240-PRC-010_Verificacion_de_la_comunicacion_CAN_de_la_TCU.pdf: Pasos"
+      ]
+    },
+    {
+      "id": "R07-05-FUSIBLE-CMP09",
+      "requisito": "R07",
+      "tipo": "unanswerable",
+      "consulta": "¿Qué amperaje nominal tiene el fusible de protección del electroventilador CMP-09?",
+      "version": "V2.0",
+      "accion_esperada": "abstain",
+      "dato_no_documentado": "Se menciona revisar el fusible correspondiente y el consumo máximo del ventilador, pero no se especifica el calibre nominal del fusible.",
+      "referencias_de_contexto": [
+        "HTM240-PRC-005_Prueba_funcional_del_electroventilador.pdf: Pasos",
+        "HTM240-CAT-001_Catalogo_componentes.pdf: CMP-09"
+      ]
+    },
+    {
+      "id": "R07-06-GARANTIA-BATERIA",
+      "requisito": "R07",
+      "tipo": "unanswerable",
+      "consulta": "¿Cuántos años de garantía de fábrica tiene el pack de batería de alta tensión?",
+      "version": "V2.0",
+      "accion_esperada": "abstain",
+      "dato_no_documentado": "El corpus no define condiciones ni duración de garantía comercial.",
+      "referencias_de_contexto": [
+        "HTM240-CAT-001_Catalogo_componentes.pdf: CMP-15",
+        "HTM240-DIC-001_Diccionario_tecnico.pdf: Pack de batería"
+      ]
+    },
+    {
+      "id": "R07-07-SERIAL-TCU",
+      "requisito": "R07",
+      "tipo": "unanswerable",
+      "consulta": "¿Cuál es el número de serie de la TCU instalada en mi vehículo?",
+      "version": "V2.0",
+      "accion_esperada": "abstain",
+      "dato_no_documentado": "La documentación es genérica y no contiene registros individualizados de vehículos ni números de serie instalados.",
+      "referencias_de_contexto": [
+        "HTM240-MAN-001_Manual_general.pdf: 7. Interacción con la Unidad de Control Térmico",
+        "HTM240-CAT-001_Catalogo_componentes.pdf: CMP-13"
+      ]
+    },
+    {
+      "id": "R07-08-AIRE-ACONDICIONADO",
+      "requisito": "R07",
+      "tipo": "unanswerable",
+      "consulta": "¿Qué presión de gas y qué refrigerante debo utilizar para recargar el aire acondicionado del habitáculo?",
+      "version": "V2.0",
+      "accion_esperada": "abstain",
+      "dato_no_documentado": "El sistema ThermoDrive no cubre el circuito de aire acondicionado del habitáculo; el diccionario lo declara fuera del alcance del corpus.",
+      "referencias_de_contexto": [
+        "HTM240-DIC-001_Diccionario_tecnico.pdf: El aire acondicionado no enfría"
+      ]
+    }
+  ]
+}

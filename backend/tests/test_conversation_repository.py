@@ -70,5 +70,82 @@ def test_historial_reciente_se_devuelve_en_orden_cronologico(base_datos_temporal
     assert [mensaje["content"] for mensaje in historial] == [
         "Primera respuesta", "Segunda pregunta", "Segunda respuesta",
     ]
-    # Cada mensaje lleva la versión con la que se hizo: puede cambiar dentro del chat.
     assert {mensaje["engine_version"] for mensaje in historial} == {"V1.0"}
+
+
+def test_historial_conserva_aclaracion_tecnica_para_resolver_el_seguimiento(base_datos_temporal):
+    repositorio = ConversationRepository()
+    usuario = crear_usuario("usuario4")
+    conversation_id = str(uuid4())
+
+    repositorio.add_exchange(
+        usuario,
+        conversation_id,
+        "V2.0",
+        "mechanic",
+        NewMessage(
+            str(uuid4()), "user", "¿Cómo compruebo la bomba auxiliar?",
+            "2026-01-01T10:00:00Z", "V2.0", "mechanic",
+        ),
+        NewMessage(
+            str(uuid4()), "assistant",
+            "¿Te refieres a la bomba auxiliar A (CMP-02) o B (CMP-03)?",
+            "2026-01-01T10:00:01Z", "V2.0", "mechanic",
+            {"needs_clarification": True, "clarification_kind": "technical"},
+        ),
+    )
+
+    historial = repositorio.recent_history(usuario, conversation_id, 6)
+
+    assert [mensaje["role"] for mensaje in historial] == ["user", "assistant"]
+    assert historial[-1]["clarification_kind"] == "technical"
+    assert "CMP-02" in historial[-1]["content"]
+
+
+def test_historial_sigue_excluyendo_aclaraciones_de_version(base_datos_temporal):
+    repositorio = ConversationRepository()
+    usuario = crear_usuario("usuario5")
+    conversation_id = str(uuid4())
+
+    repositorio.add_exchange(
+        usuario,
+        conversation_id,
+        "",
+        "mechanic",
+        NewMessage(
+            str(uuid4()), "user", "¿Qué significa HTM-0142?",
+            "2026-01-01T10:00:00Z", "", "mechanic",
+        ),
+        NewMessage(
+            str(uuid4()), "assistant",
+            "Selecciona V1.0, V1.1 o V2.0.",
+            "2026-01-01T10:00:01Z", "", "mechanic",
+            {"needs_clarification": True, "clarification_kind": "engine_version"},
+        ),
+    )
+
+    historial = repositorio.recent_history(usuario, conversation_id, 6)
+
+    assert historial == []
+
+def test_historial_conserva_la_version_de_cada_mensaje_si_cambia_en_el_chat(base_datos_temporal):
+    repositorio = ConversationRepository()
+    usuario = crear_usuario("usuario6")
+    conversation_id = str(uuid4())
+
+    repositorio.add_exchange(
+        usuario, conversation_id, "V1.0", "mechanic",
+        NewMessage(str(uuid4()), "user", "¿Qué intervalo corresponde?", "2026-01-01T10:00:00Z", "V1.0", "mechanic"),
+        NewMessage(str(uuid4()), "assistant", "Respuesta de V1.0", "2026-01-01T10:00:01Z", "V1.0", "mechanic"),
+    )
+    repositorio.add_exchange(
+        usuario, conversation_id, "V2.0", "mechanic",
+        NewMessage(str(uuid4()), "user", "¿Y para esta versión?", "2026-01-01T10:00:02Z", "V2.0", "mechanic"),
+        NewMessage(str(uuid4()), "assistant", "Respuesta de V2.0", "2026-01-01T10:00:03Z", "V2.0", "mechanic"),
+    )
+
+    historial = repositorio.recent_history(usuario, conversation_id, 4)
+
+    assert [mensaje["engine_version"] for mensaje in historial] == [
+        "V1.0", "V1.0", "V2.0", "V2.0",
+    ]

@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
-import { api } from '@/services/api';
+import { api, ApiError } from '@/services/api';
 import { useAppStore, type AppStore } from '@/store/appStore';
-import { useToast } from '@/toast';
+import { useToast } from '@/useToast';
 import type { ChatMessage } from '@/types/chat';
 import type { Conversation } from '@/types/conversation';
 import { isSelectionComplete, type EngineSelection } from '@/types/engine';
@@ -96,8 +96,17 @@ export function useChat() {
       }
       let message = 'No se ha podido procesar la consulta';
       if (e instanceof TypeError) {
-        // Sin conexión con el servidor, `fetch` lanza un TypeError.
+        // Sin conexión con el backend, `fetch` suele lanzar un TypeError.
         message = 'No se ha podido conectar con el servidor';
+      } else if (e instanceof ApiError) {
+        // El backend devuelve mensajes seguros y específicos para errores del proveedor IA.
+        if ([429, 502, 503].includes(e.status)) {
+          message = e.message;
+        } else if (e.status >= 500) {
+          message = 'Se ha producido un error interno. Inténtalo de nuevo.';
+        } else {
+          message = e.message;
+        }
       }
       setFailure({ conversationId: pending.id, message });
     } finally {

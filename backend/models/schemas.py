@@ -75,10 +75,12 @@ class Source(BaseModel):
     page: int | None = None
     engine_version: str | None = None
     excerpt: str | None = None
+    # "cited": declarada por el modelo; "verified": cita literal validada por el backend; "retrieved": contexto.
+    citation_status: Literal["cited", "verified", "retrieved"] = "retrieved"
 
 
 class StepFragment(BaseModel):
-    """Un fragmento recuperado en la búsqueda, con su similitud y si se ha usado en la respuesta."""
+    """Fragmento recuperado durante la búsqueda y si se usó en la respuesta."""
 
     document: str
     source_type: SourceType
@@ -89,33 +91,78 @@ class StepFragment(BaseModel):
 
 
 class StepPoint(BaseModel):
-    """Un paso del razonamiento del LLM y los fragmentos que cita ("HTM240-DIA-001 · pág. 1")."""
+    """Resumen breve de una comprobación y las referencias documentales que la respaldan."""
 
     text: str
     refs: list[str] | None = None
 
 
 class QueryStage(BaseModel):
-    """Una etapa de la transformación de la consulta (original, reformulada, técnica generada)."""
+    """Etapa observable de transformación de la consulta."""
 
     label: str
     text: str
-    terms: list[str] | None = None  # códigos técnicos añadidos en esta etapa
+    terms: list[str] | None = None
     note: str | None = None
 
 
 class ReasoningStep(BaseModel):
-    """Una fase de los pasos seguidos para llegar a la respuesta (ver services/pasos.py)."""
+    """Fase observable del proceso RAG, no una transcripción del razonamiento interno del modelo."""
 
-    # "interpretation" solo aparece en respuestas guardadas antes de `stages`.
     kind: Literal["query", "interpretation", "search", "analysis", "conclusion"]
     title: str
     detail: str | None = None
-    stages: list[QueryStage] | None = None      # query: de la pregunta original a la consulta técnica
-    terms: list[str] | None = None              # interpretation: códigos técnicos detectados
-    fragments: list[StepFragment] | None = None  # search: fragmentos recuperados
-    points: list[StepPoint] | None = None       # analysis: pasos del razonamiento del LLM
-    evidence: EvidenceStatus | None = None      # conclusion: nivel de evidencia
+    stages: list[QueryStage] | None = None
+    terms: list[str] | None = None
+    fragments: list[StepFragment] | None = None
+    points: list[StepPoint] | None = None
+    evidence: EvidenceStatus | None = None
+
+
+class SafetyAlert(BaseModel):
+    """Aviso determinista de seguridad, independiente del texto generado por el LLM."""
+
+    code: Literal["real_vehicle", "high_voltage", "engine_overheating"]
+    severity: Literal["warning", "critical"]
+    title: str
+    message: str
+
+
+class ClaimCheck(BaseModel):
+    """Resultado de revisión orientativa de una afirmación factual."""
+
+    claim: str
+    status: Literal["supported", "conflicting", "not_found", "uncertain", "unverified"]
+    source_ids: list[str] = Field(default_factory=list)
+    evidence_excerpt: str | None = None
+
+
+class ClaimVerification(BaseModel):
+    """Resumen de la segunda pasada de revisión frente al contexto documental."""
+
+    status: Literal["reviewed", "needs_review", "unavailable", "no_claims", "not_run"]
+    claims_total: int = 0
+    claims_supported: int = 0
+    claims: list[ClaimCheck] = Field(default_factory=list)
+    # True cuando el backend limitó el texto final a afirmaciones con cita literal validada.
+    answer_restricted: bool = False
+
+
+class RequestedEvidenceItem(BaseModel):
+    """Un dato solicitado y el respaldo documental localizado para él."""
+
+    item: str
+    status: Literal["supported", "not_found", "uncertain", "conflicting"]
+    source_ids: list[str] = Field(default_factory=list)
+    evidence_excerpt: str | None = None
+
+
+class EvidenceSufficiency(BaseModel):
+    """Resultado de la comprobación previa de cobertura documental (R07)."""
+
+    status: Literal["sufficient", "partial", "insufficient", "unavailable", "not_run"]
+    requested_items: list[RequestedEvidenceItem] = Field(default_factory=list)
+    missing_information: list[str] = Field(default_factory=list)
 
 
 class AnswerMeta(BaseModel):
@@ -123,11 +170,16 @@ class AnswerMeta(BaseModel):
 
     evidence_status: EvidenceStatus | None = None
     needs_clarification: bool = False
+    clarification_kind: Literal["engine_version", "technical", "version_mismatch", "version_comparison"] | None = None
     documents_consulted: int | None = None
-    # Solo las fuentes de las que el LLM ha sacado la información (no todos los fragmentos recuperados).
     sources: list[Source] | None = None
-    # Pasos seguidos para llegar a la respuesta, por fases. Las respuestas guardadas con la
-    # primera versión de esta función los tienen como texto plano: por eso se admite `str`.
+    # Avisos calculados por el backend a partir de señales del mensaje, no del prompt/LLM.
+    safety_alerts: list[SafetyAlert] = Field(default_factory=list)
+    # Revisión orientativa de las afirmaciones frente a los fragmentos recuperados.
+    claim_verification: ClaimVerification | None = None
+    # Evaluación previa: distingue relevancia de los fragmentos y cobertura real de la pregunta.
+    evidence_sufficiency: EvidenceSufficiency | None = None
+    # Pasos observables del proceso RAG (compatibles con mensajes antiguos en texto plano).
     steps: list[ReasoningStep | str] | None = None
 
 

@@ -11,12 +11,14 @@ def test_el_historial_indica_la_version_de_cada_mensaje():
         {"role": "user", "content": "¿Y la bomba?"},
     ]
     assert formatear_historial(historial) == (
-        "Usuario [V1.0]: ¿Intervalo de refrigerante?\nAsistente [V1.0]: 60.000 km\nUsuario: ¿Y la bomba?"
+        "Usuario [V1.0]: ¿Intervalo de refrigerante?\n"
+        "Asistente [V1.0]: 60.000 km\n"
+        "Usuario: ¿Y la bomba?"
     )
 
 
 def test_el_prompt_da_por_conocida_la_version_elegida():
-    prompt = construir_prompt("¿Cuál es el intervalo de mantenimiento de mi versión?", [], "user", [], "V1.1")
+    prompt = construir_prompt("¿Cuál es el intervalo de mantenimiento?", [], "user", [], "V1.1")
     assert "NUNCA pidas al usuario que confirme o indique su versión" in prompt
     assert "EXPÓN LOS DATOS DE TODAS LAS VERSIONES" not in prompt
 

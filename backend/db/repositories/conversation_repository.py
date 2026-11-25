@@ -128,23 +128,46 @@ class ConversationRepository:
             return True
 
     def recent_history(self, user: User, conversation_id: str, limit: int) -> list[dict]:
-        """Últimos `limit` mensajes (role, content, engine_version) en orden cronológico, sin los avisos de aclaración.
-
-        La versión va con cada mensaje porque puede cambiar dentro del chat: el LLM no debe
-        reutilizar datos de una respuesta dada para otra versión.
-        """
+        """Últimos `limit` mensajes (role, content) en orden cronológico, sin los avisos de aclaración."""
         with app_db.connection_context():
             conversation = self._get(user, conversation_id)
             if conversation is None:
                 return []
             rows = conversation.messages.order_by(Message.seq.desc())
             history = []
+            # Los intercambios se guardan siempre como pregunta de usuario seguida
+            # de respuesta del asistente. Al recorrerlos en orden inverso, si la
+            # respuesta es una aclaración de versión hay que excluir también la
+            # pregunta que la originó; de lo contrario esa pregunta aislada queda
+            # indebidamente en el historial.
+            omitir_pregunta_de_version = False
             for m in rows:
                 meta = json.loads(m.response) if m.response else {}
-                # Los avisos de "elige la versión" no le aportan nada al modelo.
-                if meta.get("needs_clarification"):
+
+                if (
+                    m.role == "assistant"
+                    and meta.get("needs_clarification")
+                    and meta.get("clarification_kind") != "technical"
+                ):
+                    omitir_pregunta_de_version = True
                     continue
-                history.append({"role": m.role, "content": m.content, "engine_version": m.engine_version})
+
+                if m.role == "user" and omitir_pregunta_de_version:
+                    omitir_pregunta_de_version = False
+                    continue
+
+                # Las aclaraciones técnicas sí se conservan junto con la pregunta
+                # original para que la precisión posterior pueda resolverla.
+                # La versión se guarda por mensaje porque puede cambiar dentro de una conversación.
+                # El formateador del prompt la utiliza para evitar mezclar respuestas de motores distintos.
+                entrada = {
+                    "role": m.role,
+                    "content": m.content,
+                    "engine_version": m.engine_version or "",
+                }
+                if meta.get("clarification_kind") == "technical":
+                    entrada["clarification_kind"] = "technical"
+                history.append(entrada)
                 if len(history) == limit:
                     break
             return list(reversed(history))

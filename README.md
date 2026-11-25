@@ -92,3 +92,42 @@ Las capas van siempre en el mismo sentido (de la vista a la base de datos):
 | GET | `/api/versions`, `/api/documents` | no | Versiones del motor y documentación indexada |
 
 La documentación interactiva de todos los endpoints está en http://localhost:8000/docs.
+
+
+## Pruebas automatizadas del backend
+
+Instala las dependencias de desarrollo desde la raíz del repositorio:
+
+```bash
+python -m pip install -r requirements-dev.txt
+```
+
+Ejecuta las pruebas unitarias (las pruebas de integración se excluyen por defecto):
+
+```bash
+python -m pytest -v
+```
+
+Ejecuta aparte las pruebas que consultan la base documental y cargan el modelo de embeddings:
+
+```bash
+python -m pytest -o addopts= -m integration -v
+```
+
+Las pruebas de integración pueden necesitar una primera descarga del modelo de embeddings.
+
+## Registro de auditoría de consultas
+
+El backend añade una línea JSONL por cada intento procesado en `backend/logs/consultas.jsonl`.
+Cada línea incluye un `attempt_id` único, la relación con usuario/conversación/mensaje cuando está
+disponible, versión, perfil, estado, evidencia, documentos y duración. Los reintentos de una misma
+pregunta pueden compartir `message_id`, pero cada ejecución tiene un `attempt_id` diferente.
+
+El historial completo de preguntas y respuestas permanece en `thermodrive_app.db`; el JSONL es un
+registro de auditoría complementario. Los archivos de `backend/logs/` están excluidos de Git porque
+pueden contener texto introducido por usuarios e identificadores. No subas registros reales al repositorio.
+
+## Aviso de uso educativo
+
+La interfaz muestra un aviso permanente de que HTM-240 es un sistema ficticio utilizado con fines
+educativos. La aplicación no sustituye los manuales oficiales ni la evaluación de un profesional.

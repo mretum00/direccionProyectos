@@ -1,48 +1,74 @@
-"""Pruebas de los pasos seguidos por fases (services/pasos.py)."""
+"""Pruebas de los pasos observables del flujo RAG (sin exponer CoT del LLM)."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 
-from services.pasos import paso_transformacion
-
-FECHA = datetime(2026, 11, 23, 13, 48, 52).astimezone()
+from services.pasos import paso_busqueda, paso_conclusion, paso_cobertura, paso_transformacion
 
 
-def test_muestra_la_transformacion_de_la_pregunta_original_a_la_consulta_tecnica():
-    pregunta = "Se enciende un testigo y falla TES-01"
+def test_paso_transformacion_muestra_pregunta_y_consulta_tecnica():
     paso = paso_transformacion(
-        "V1.0", "user", pregunta, pregunta,
-        f"{pregunta} (Se enciende el testigo TES-01; revisar CMP‑01 y HTM-0142)",
-        FECHA,
+        "V2.0",
+        "mechanic",
+        "¿Qué ocurre con la bomba?",
+        "¿Qué ocurre con la bomba CMP-02?",
+        "¿Qué ocurre con la bomba CMP-02? (verificar circuito CIR-02)",
+        datetime(2026, 11, 24, 10, 30, tzinfo=timezone.utc),
     )
 
     assert paso["kind"] == "query"
-    assert paso["detail"] == (
-        "Versión V1.0 · Perfil conductor · Consulta realizada el 23/11/2026 a las 13:48:52"
-    )
-    original, tecnica = paso["stages"]
-    assert original == {"label": "Pregunta original", "text": pregunta}
-    # Solo la parte generada, con el guion normalizado y los códigos nuevos (TES-01 ya estaba).
-    assert tecnica["label"] == "Consulta técnica generada"
-    assert tecnica["text"] == "Se enciende el testigo TES-01; revisar CMP-01 y HTM-0142"
-    assert tecnica["terms"] == ["CMP-01", "HTM-0142"]
-
-
-def test_incluye_la_reformulacion_con_el_historial_si_la_hay():
-    paso = paso_transformacion("V2.0", "mechanic", "¿Y eso?", "¿Qué es CMP-02?", "¿Qué es CMP-02?")
-
-    assert [etapa["label"] for etapa in paso["stages"]] == [
-        "Pregunta original", "Reformulada con el historial", "Consulta técnica generada",
+    assert [stage["label"] for stage in paso["stages"]] == [
+        "Pregunta original",
+        "Reformulada con el historial",
+        "Consulta técnica para la búsqueda",
     ]
-    assert paso["stages"][1]["text"] == "¿Qué es CMP-02?"
+    assert "CIR-02" in paso["stages"][-1]["terms"]
 
 
-def test_si_el_glosario_no_aporta_nada_se_indica():
-    for tecnica in ("Pregunta", "Pregunta (Pregunta)"):
-        etapa = paso_transformacion("V1.0", "user", "Pregunta", "Pregunta", tecnica)["stages"][-1]
-        assert etapa["text"] == "Pregunta"
-        assert "no ha aportado" in etapa["note"]
+def test_paso_busqueda_distingue_fragmentos_citados_de_no_citados():
+    fragmentos = [
+        {"chunk_id": "HTM240-CAT-001_catalogo.pdf_1", "score": 0.82, "pagina": 2, "seccion": "CMP-02"},
+        {"chunk_id": "HTM240-PRC-001_proc.pdf_2", "score": 0.61, "pagina": 4},
+    ]
+
+    paso = paso_busqueda("V2.0", fragmentos, {"HTM240-CAT-001_catalogo.pdf_1"})
+
+    assert paso["kind"] == "search"
+    assert len(paso["fragments"]) == 2
+    assert paso["fragments"][0]["used"] is True
+    assert paso["fragments"][1]["used"] is False
+    assert paso["fragments"][0]["source_type"] == "manual"
 
 
-def test_siempre_indica_cuando_se_hizo_la_consulta():
-    paso = paso_transformacion("V1.0", "user", "Pregunta", "Pregunta", "Pregunta")
-    assert "Consulta realizada el " in paso["detail"]
+def test_paso_cobertura_resume_resultado_r07_sin_razonamiento_interno():
+    suficiencia = {
+        "status": "partial",
+        "requested_items": [
+            {"item": "caudal nominal de CMP-02", "status": "supported", "source_ids": ["HTM240-CAT-001_catalogo.pdf_1"]},
+            {"item": "amperaje del fusible", "status": "not_found", "source_ids": []},
+        ],
+        "missing_information": ["amperaje del fusible"],
+    }
+
+    paso = paso_cobertura(suficiencia)
+
+    assert paso["kind"] == "analysis"
+    assert "Cobertura documental parcial" == paso["title"]
+    assert len(paso["points"]) == 2
+    assert "caudal nominal" in paso["points"][0]["text"]
+    assert "no localizado" in paso["points"][1]["text"]
+    assert "razonamiento" not in " ".join(point["text"] for point in paso["points"]).lower()
+
+
+def test_paso_cobertura_no_se_crea_si_r07_no_se_ejecuto():
+    assert paso_cobertura({"status": "not_run", "requested_items": []}) is None
+
+
+def test_paso_conclusion_indica_bloqueo_por_evidencia_insuficiente():
+    paso = paso_conclusion(
+        "insufficient", 0.72, 0.30, 0.65,
+        detalle_extra="R07 no encontró evidencia suficiente.",
+    )
+
+    assert paso["kind"] == "conclusion"
+    assert paso["evidence"] == "insufficient"
+    assert "R07" in paso["detail"]

@@ -28,20 +28,10 @@ def test_codigo_dtc_encuentra_el_catalogo():
         10
     )
 
-    print("\n--- RESULTADOS DE LA BUSQUEDA ---")
-    print(f"Base de datos: {settings.db_path}")
-    print(f"Resultados encontrados: {len(resultados)}")
-
-    for r in resultados:
-        print(
-            f"ID: {r['chunk_id']} | "
-            f"Categoría: {r['categoria']} | "
-            f"Puntuación: {r['score']:.4f} | "
-            f"Contiene HTM-0142: {'HTM-0142' in r['texto']}"
-        )
+    assert resultados, "La búsqueda no devolvió resultados"
 
     assert any(
         r["categoria"] == "DTC"
-        and "HTM-0142" in r["texto"]
+        and r["seccion"] == "HTM-0142"
         for r in resultados
     )

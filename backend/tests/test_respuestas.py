@@ -1,98 +1,142 @@
-"""Pruebas de la separación del cierre del LLM (pasos y fragmentos utilizados)."""
+"""Pruebas de respuestas deterministas y seguras de la API."""
 
-from services.respuestas import citar_fragmentos, extraer_referencias, fragmentos_utilizados, separar_cierre
-
-
-def _fragmento(chunk_id, pagina=None):
-    return {"chunk_id": chunk_id, "pagina": pagina}
-
-
-FRAGMENTOS = [
-    _fragmento("HTM240-MNT-001_Mantenimiento.pdf_3", pagina=4),
-    _fragmento("HTM240-DTC-001_Codigos.pdf_7"),
-    _fragmento("HTM240-BOL-006_Boletin.pdf_1"),
-]
+from services.respuestas import (
+    _extracto,
+    pedir_aclaracion,
+    respuesta_limitada_por_verificacion,
+    respuesta_sin_evidencia,
+    normalizar_intervalos_caudal,
+)
 
 
-def test_separa_pasos_y_fragmentos_del_texto():
+def test_respuesta_sin_evidencia_no_inventa_fuentes_ni_datos():
+    resultado = respuesta_sin_evidencia()
+
+    assert resultado["evidence_status"] == "insufficient"
+    assert resultado["sources"] == []
+    assert resultado["documents_consulted"] == 0
+    assert "No hay información suficiente" in resultado["message"]["content"]
+
+
+def test_pedir_aclaracion_solo_solicita_la_version_del_motor():
+    resultado = pedir_aclaracion("")
+
+    assert resultado["needs_clarification"] is True
+    assert "versión del motor" in resultado["message"]["content"]
+    assert "tipo de usuario" not in resultado["message"]["content"]
+
+
+def test_extracto_de_700_caracteres_conserva_el_fragmento_cmp02_completo():
     texto = (
-        "### RESUMEN\nRespuesta.\n\n### FUENTE\nHTM240-MNT-001\n\n"
-        "### Pasos seguidos:\n1. Primer paso.\n2) Segundo paso.\n- Tercer paso.\n\n"
-        "### **FRAGMENTOS UTILIZADOS**\nF1, f3"
+        "CMP-02 — Bomba electrica auxiliar A (circuito bateria) • Función: Impulsar refrigerante "
+        "dedicado al pack de bateria de alta tension • Circuito / ubicación funcional: Circuito "
+        "termico de la bateria de alta tension • Valores nominales: Caudal 8-14 l/min, 12V, 3-6A "
+        "• Posibles modos de fallo: Bobinado deteriorado, Rotor bloqueado, Conector oxidado "
+        "• Síntomas asociados: Temperatura bateria elevada, Ruido agudo intermitente, DTC de flujo "
+        "bajo • Documentos relacionados: HTM240-MAN-001 (Manual general), HTM240-DIA-001 "
+        "(Manual de diagnóstico), HTM240-DTC-001 (Catálogo DTC)"
     )
 
-    contenido, pasos, numeros = separar_cierre(texto)
+    extracto = _extracto(texto, 700)
 
-    assert contenido == "### RESUMEN\nRespuesta.\n\n### FUENTE\nHTM240-MNT-001"
-    assert pasos == ["Primer paso.", "Segundo paso.", "Tercer paso."]
-    assert numeros == [1, 3]
-
-
-def test_ninguno_y_seccion_ausente_se_distinguen():
-    assert separar_cierre("Texto\n### FRAGMENTOS UTILIZADOS\nNinguno")[2] == []
-    assert separar_cierre("Texto sin cierre")[2] is None
+    assert extracto == texto
+    assert "Caudal 8-14 l/min, 12V, 3-6A" in extracto
+    assert "DTC de flujo bajo" in extracto
 
 
-def test_solo_se_quedan_los_fragmentos_indicados():
-    usados = fragmentos_utilizados(FRAGMENTOS, [3, 1, 3, 9], "")
-
-    assert [f["chunk_id"] for f in usados] == [
-        "HTM240-MNT-001_Mantenimiento.pdf_3",
-        "HTM240-BOL-006_Boletin.pdf_1",
+def test_respuesta_limitada_conserva_solo_afirmaciones_con_cita_literal_valida():
+    fragmentos = [
+        {
+            "chunk_id": "HTM240-CAT-001_Catalogo_componentes.pdf_2",
+            "texto": "CMP-02: Caudal nominal 8-14 l/min, 12V, 3-6A",
+            "seccion": "CMP-02",
+            "pagina": 1,
+        },
+        {
+            "chunk_id": "HTM240-DTC-001_Catalogo_DTC.pdf_4",
+            "texto": "HTM-0202: fallo de comunicación de batería",
+            "seccion": "HTM-0202",
+            "pagina": 5,
+        },
     ]
+    verificacion = {
+        "status": "needs_review",
+        "claims_total": 2,
+        "claims_supported": 1,
+        "claims": [
+            {
+                "claim": "CMP-02 tiene un caudal nominal de 8-14 l/min.",
+                "status": "supported",
+                "source_ids": [fragmentos[0]["chunk_id"]],
+                "evidence_excerpt": "Caudal nominal 8-14 l/min",
+            },
+            {
+                "claim": "CMP-02 siempre provoca HTM-9999 cuando se bloquea.",
+                "status": "not_found",
+                "source_ids": [],
+                "evidence_excerpt": None,
+            },
+        ],
+    }
+
+    texto, referencias = respuesta_limitada_por_verificacion(verificacion, fragmentos)
+
+    assert "caudal nominal de 8-14 l/min" in texto
+    assert "siempre provoca HTM-9999" not in texto
+    assert "Se han omitido 1 afirmación" in texto
+    assert "[F1]" in texto
+    assert "[F2]" not in texto
+    assert referencias == {1}
 
 
-def test_sin_seccion_se_usan_los_documentos_citados_en_el_texto():
-    usados = fragmentos_utilizados(FRAGMENTOS, None, "Según HTM240‑BOL‑006, el intervalo es...")
+def test_respuesta_limitada_se_abstiene_si_no_hay_afirmaciones_respaldadas():
+    verificacion = {
+        "status": "needs_review",
+        "claims_total": 1,
+        "claims_supported": 0,
+        "claims": [{
+            "claim": "La bomba entrega 8 bar.",
+            "status": "not_found",
+            "source_ids": [],
+            "evidence_excerpt": None,
+        }],
+    }
 
-    assert [f["chunk_id"] for f in usados] == ["HTM240-BOL-006_Boletin.pdf_1"]
+    texto, referencias = respuesta_limitada_por_verificacion(verificacion, [
+        {"chunk_id": "HTM240-CAT-001_Catalogo_componentes.pdf_2", "texto": "CMP-02: caudal 8-14 l/min"}
+    ])
 
+    assert "no se muestra la respuesta generada" in texto
+    assert "8 bar" not in texto
+    assert referencias == set()
 
-def test_sin_seccion_ni_citas_no_hay_fuentes():
-    assert fragmentos_utilizados(FRAGMENTOS, None, "Respuesta sin citas") == []
+def test_normalizar_intervalo_caudal_sin_espacios():
+    texto = "El caudal nominal es de 8a14l/min."
 
+    resultado = normalizar_intervalos_caudal(texto)
 
-def test_cita_las_referencias_con_el_documento():
-    assert citar_fragmentos("Consulté F1 y F2; F9 no existe.", FRAGMENTOS) == (
-        "Consulté HTM240-MNT-001 · pág. 4 y HTM240-DTC-001; F9 no existe."
-    )
-
-
-def test_no_repite_el_documento_que_el_llm_escribe_junto_a_la_referencia():
-    # Código detrás, nombre del fichero delante y referencias entre paréntesis.
-    assert citar_fragmentos("Revisé F3 (BOL‑006).", FRAGMENTOS) == "Revisé HTM240-BOL-006."
-    assert citar_fragmentos("Consulté HTM240-MNT-001_Mantenimiento.pdf (F1).", FRAGMENTOS) == (
-        "Consulté HTM240-MNT-001 · pág. 4."
-    )
-    assert citar_fragmentos("El catálogo (F2, F3) lo confirma.", FRAGMENTOS) == (
-        "El catálogo HTM240-DTC-001, HTM240-BOL-006 lo confirma."
-    )
-    # Si el documento escrito delante es otro, se conserva.
-    assert citar_fragmentos("HTM240-SEG-001 F1", FRAGMENTOS) == "HTM240-SEG-001 HTM240-MNT-001 · pág. 4"
-
-
-def test_extrae_las_referencias_de_un_paso_y_limpia_el_texto():
-    assert extraer_referencias("Identifiqué el testigo TES‑01 (F1).", FRAGMENTOS) == (
-        "Identifiqué el testigo TES-01.", ["HTM240-MNT-001 · pág. 4"],
-    )
-    # Documento escrito por el LLM + referencia: el código se queda en el texto, sin repetirse.
-    assert extraer_referencias("Revisé la tabla de HTM240‑DTC‑001_Codigos.pdf F2 para la criticidad.", FRAGMENTOS) == (
-        "Revisé la tabla de HTM240-DTC-001 para la criticidad.", ["HTM240-DTC-001"],
-    )
-    assert extraer_referencias("Lo confirma el boletín (HTM240‑BOL‑006, F3).", FRAGMENTOS) == (
-        "Lo confirma el boletín (HTM240-BOL-006).", ["HTM240-BOL-006"],
-    )
+    assert resultado == "El caudal nominal es de 8-14 l/min."
 
 
-def test_ids_internos_y_referencias_en_medio_de_la_frase():
-    # El LLM copia el id interno del fragmento: se trata como su referencia.
-    assert extraer_referencias("Identifiqué el testigo TES-01 en HTM240-BOL-006_Boletin.pdf_1.", FRAGMENTOS) == (
-        "Identifiqué el testigo TES-01.", ["HTM240-BOL-006"],
-    )
-    # En medio de la frase se deja el código para que se siga entendiendo.
-    assert extraer_referencias("Consulté F2 para ver la criticidad.", FRAGMENTOS) == (
-        "Consulté HTM240-DTC-001 para ver la criticidad.", ["HTM240-DTC-001"],
-    )
-    assert extraer_referencias("Dato vigente (F1 y F3).", FRAGMENTOS) == (
-        "Dato vigente.", ["HTM240-MNT-001 · pág. 4", "HTM240-BOL-006"],
-    )
+def test_normalizar_intervalo_caudal_con_preposicion():
+    texto = "El caudal nominal está entre 8 a 14 l/min."
+
+    resultado = normalizar_intervalos_caudal(texto)
+
+    assert resultado == "El caudal nominal está entre 8-14 l/min."
+
+
+def test_normalizar_intervalo_caudal_con_guion():
+    texto = "El caudal nominal es de 8–14l/min."
+
+    resultado = normalizar_intervalos_caudal(texto)
+
+    assert resultado == "El caudal nominal es de 8-14 l/min."
+
+
+def test_normalizar_intervalo_caudal_no_modifica_otros_datos():
+    texto = "La corriente nominal es de 3-6 A a 12V."
+
+    resultado = normalizar_intervalos_caudal(texto)
+
+    assert resultado == texto

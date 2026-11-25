@@ -110,6 +110,26 @@ PATRON_CASO = re.compile(r"^(HTM-CASO-\d{3}) — [^()]*\((V\d\.\d)")
 # Máx. 70 caracteres y sin punto: así no se confunden con los pasos de un procedimiento ("1. Verificar ...").
 PATRON_APARTADO = re.compile(r"^\d+(?:\.\d+)*\.?\s+[A-ZÁÉÍÓÚ][^.]{2,70}$")
 
+# Los procedimientos usan encabezados sin numerar; se reconocen como secciones reales.
+SECCIONES_PRC = {
+    "Objetivo",
+    "Aplicabilidad",
+    "Perfil autorizado",
+    "Riesgos",
+    "Equipos de protección individual",
+    "Herramientas necesarias",
+    "Condiciones previas",
+    "Pasos",
+    "Valores esperados",
+    "Criterios de aceptación",
+    "Acción si el resultado no es correcto",
+    "Verificación final",
+    "Documentos relacionados",
+}
+
+# Los boletines actuales organizan su contenido bajo este encabezado.
+SECCIONES_BOL = {"Contenido", "Referencias"}
+
 # Datos del encabezado de cada documento que se usan para comprobar versiones y totales.
 PATRON_APLICABLE = re.compile(r"Aplicable a:\s*(?:HTM-240\s*)?(V\d\.\d(?:\s*,\s*V\d\.\d)*)")
 PATRON_APLICABILIDAD = re.compile(r"Aplicabilidad\s+(Todas las versiones|V\d\.\d(?:\s*(?:,|y)\s*V\d\.\d)*)")
@@ -224,8 +244,13 @@ def detectar_apartado(linea, tipo):
         coincidencia = PATRON_CASO.match(linea)
         return (coincidencia.group(1), [coincidencia.group(2)]) if coincidencia else None
 
-    # Los procedimientos, boletines y el diccionario no tienen apartados numerados.
-    if tipo in (None, "PRC", "BOL", "DIC"):
+    if tipo == "PRC" and linea in SECCIONES_PRC:
+        return (linea, None)
+
+    if tipo == "BOL" and linea in SECCIONES_BOL:
+        return (linea, None)
+
+    if tipo in (None, "DIC"):
         return None
 
     if PATRON_APARTADO.match(linea):
@@ -354,22 +379,22 @@ def cargar_documento(ruta_completa, archivo, categoria, sustituido):
 # "seccion" y "versiones": así no se guardan todos los fragmentos en memoria.
 
 def procesar_diccionario(documento):
-    """Un fragmento por cada viñeta (•) del diccionario."""
-    texto_completo = "\n".join(documento.lineas)
+    """Un fragmento por viñeta, conservando el término y su posición dentro del PDF."""
+    # `documento.texto` usa el mismo espacio entre líneas que `inicios_pagina`, por lo que
+    # la posición de cada viñeta se puede convertir directamente en número de página.
     indice = 0
 
-    for term in re.finditer(
-        r"(?:^|\n)•\s*(.*?)(?=\n•\s*|\Z)",
-        texto_completo,
-        re.DOTALL
-    ):
+    for term in re.finditer(r"•\s*(.*?)(?=\s•|\Z)", documento.texto, re.DOTALL):
         termino = re.sub(r"\s+", " ", term.group(1)).strip()
 
         if len(termino) > 10:
+            etiqueta = termino.split(":", 1)[0].strip()
             yield {
                 "id": f"{documento.archivo}_DIC{indice}",
                 "texto": f"Expresión coloquial/Término: {termino}",
                 "contexto": "",
+                "inicio": term.start(),
+                "seccion": etiqueta or f"Término {indice + 1}",
             }
 
             indice += 1
@@ -443,18 +468,19 @@ def procesar_documento_tecnico(documento, chunk_size=CHUNK_SIZE, overlap=CHUNK_O
 
     for desde, hasta, etiqueta, versiones in tramos:
         for inicio, fragmento in ventanas(texto, desde, hasta, chunk_size, overlap):
+            # El tramo anterior al primer encabezado es información introductoria del documento.
+            # Se etiqueta explícitamente para que no llegue una fuente sin sección al frontend.
+            seccion = etiqueta or "Introducción"
             chunk = {
                 "id": f"{documento.archivo}_{indice}",
                 "texto": fragmento,
                 # Si el fragmento no empieza por el título del apartado (es la 2.ª ventana en
                 # adelante), el título se añade solo al calcular el embedding. Así un fragmento
                 # del medio de "HTM-0142" sigue sabiendo de qué código habla.
-                "contexto": f"{etiqueta}. " if etiqueta and inicio > desde else "",
+                "contexto": f"{seccion}. " if etiqueta and inicio > desde else "",
                 "inicio": inicio,
+                "seccion": seccion,
             }
-
-            if etiqueta:
-                chunk["seccion"] = etiqueta
             if versiones:
                 chunk["versiones"] = versiones
 
@@ -574,9 +600,13 @@ def verificar_bd():
         if "SUSTITUIDO" in chunk_id and set(versiones) == set(ENGINE_VERSIONS):
             errores.append(f"{chunk_id}: documento sustituido válido para todas las versiones")
 
+        if pagina is None:
+            avisos.append(f"{chunk_id}: sin número de página")
+
+        if not fila.section or not fila.section.strip():
+            avisos.append(f"{chunk_id}: sin sección identificada")
+
         if categoria != "Dictionary":
-            if pagina is None:
-                avisos.append(f"{chunk_id}: sin número de página")
             for v in versiones:
                 if v in por_version:
                     por_version[v] += 1

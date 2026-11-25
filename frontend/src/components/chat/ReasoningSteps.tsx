@@ -254,7 +254,7 @@ function StepItem({ step, last }: { step: ReasoningStep; last: boolean }) {
 
 /**
  * "Pasos seguidos": cómo se ha llegado a la respuesta, como una línea temporal por fases
- * (consulta, interpretación, búsqueda, razonamiento y conclusión). Plegado de entrada, con un
+ * (consulta, búsqueda, cobertura documental y conclusión). Plegado de entrada, con un
  * resumen en la cabecera para no alargar la respuesta.
  */
 export function ReasoningSteps({ steps }: ReasoningStepsProps) {

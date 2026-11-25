@@ -34,3 +34,6 @@ thermodrive_app.db*
 
 # Registros de auditoría y consultas
 backend/logs/
+
+# Bases de datos experimentales del RAG
+thermodrive_rag_experimento_*.db

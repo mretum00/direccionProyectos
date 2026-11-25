@@ -1,0 +1,300 @@
+{
+  "nombre": "ThermoDrive HTM-240 - Benchmark de recuperación RAG",
+  "version": 1.1,
+  "descripcion": "Benchmark revisado tras auditar los PDF originales. Se amplía TES-05 para incluir el apartado 3, que contiene una instrucción explícita de parada segura y contacto con personal habilitado; ESQ-ARQUITECTURA admite también el Manual general, cuyas secciones 1, 2 y 7 explican directamente los tres circuitos y el papel de la TCU. Las demás etiquetas se mantienen.",
+  "casos": [
+    {
+      "id": "DTC-0101",
+      "consulta": "El motor alcanza una temperatura excesiva después de circular un rato. ¿Qué significa el código HTM-0101 y qué datos debería revisar?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-DTC-001_Catalogo_DTC.pdf",
+          "secciones": [
+            "HTM-0101"
+          ]
+        },
+        {
+          "documento": "HTM240-DIA-001_Manual_diagnostico.pdf",
+          "secciones": [
+            "4.1 Sobrecalentamiento del motor"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DTC-0102",
+      "consulta": "El sensor de temperatura del motor CMP-14 da una lectura fuera de rango. ¿Qué indica el código HTM-0102?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-DTC-001_Catalogo_DTC.pdf",
+          "secciones": [
+            "HTM-0102"
+          ]
+        },
+        {
+          "documento": "HTM240-PRC-007_Verificacion_de_sensores_de_temperatura.pdf",
+          "secciones": [
+            "Pasos",
+            "Valores esperados"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PRC-001-NIVEL",
+      "consulta": "Quiero revisar el refrigerante antes de usar el vehículo. ¿Cómo puedo comprobar el nivel sin abrir el vaso de expansión cuando el motor aún está caliente?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-PRC-001_Inspeccion_del_nivel_de_refrigerante.pdf",
+          "secciones": [
+            "Riesgos",
+            "Condiciones previas",
+            "Pasos"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PRC-002-PURGA",
+      "consulta": "Se ha abierto el circuito de refrigeración del motor y parece que queda aire dentro. ¿Cómo se realiza el purgado y qué indica que ha terminado correctamente?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-PRC-002_Purgado_del_circuito_termico_del_motor.pdf",
+          "secciones": [
+            "Pasos",
+            "Valores esperados",
+            "Criterios de aceptación"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BOL-002-CORRIENTE-BOMBA",
+      "consulta": "En una prueba de la bomba auxiliar A CMP-02 a 12 voltios, ¿qué consumo de corriente se considera correcto para un vehículo V2.0?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-BOL-002.pdf",
+          "secciones": [
+            "Contenido"
+          ]
+        },
+        {
+          "documento": "HTM240-PRC-003_Verificacion_de_la_bomba_electrica_auxiliar_A_(circuito_de_bateria).pdf",
+          "secciones": [
+            "Valores esperados"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BOL-001-INTERVALO-BOMBA",
+      "consulta": "Para un ThermoDrive V1.0, ¿cada cuánto hay que verificar el caudal de la bomba auxiliar A?",
+      "version": "V1.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-BOL-001.pdf",
+          "secciones": [
+            "Contenido"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BOL-005-SENSOR-BATERIA",
+      "consulta": "¿Qué referencia lleva el sensor de temperatura de batería en V2.0 y qué precisión tiene?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-BOL-005.pdf",
+          "secciones": [
+            "Contenido"
+          ]
+        },
+        {
+          "documento": "HTM240-CAT-001_Catalogo_componentes.pdf",
+          "secciones": [
+            "CMP-15"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "BOL-006-REFRIGERANTE",
+      "consulta": "¿Cuál es el intervalo vigente para sustituir completamente el refrigerante del sistema?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-BOL-006.pdf",
+          "secciones": [
+            "Contenido"
+          ]
+        },
+        {
+          "documento": "HTM240-MNT-001_Plan_mantenimiento.pdf",
+          "secciones": [
+            "1. Inspecciones periódicas por intervalo"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "SEG-ALTA-TENSION",
+      "consulta": "Antes de intervenir en el circuito de batería CIR-02, ¿qué riesgos eléctricos debo tener en cuenta y qué habilitación necesita el técnico?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-SEG-001_Manual_seguridad.pdf",
+          "secciones": [
+            "2. Riesgos eléctricos",
+            "5. Alta tensión",
+            "7. Perfiles autorizados",
+            "8. Bloqueo y consignación (ficticios)"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "TES-05-ALTA-TENSION",
+      "consulta": "Se ha encendido el testigo rojo TES-05. ¿Qué significa y qué precaución debe tomarse?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-ADV-001_Testigos_y_mensajes.pdf",
+          "secciones": [
+            "1. Testigos del sistema ThermoDrive",
+            "4. Acciones inmediatas recomendadas por nivel de urgencia",
+            "3. Posibles combinaciones de testigos"
+          ]
+        },
+        {
+          "documento": "HTM240-SEG-001_Manual_seguridad.pdf",
+          "secciones": [
+            "5. Alta tensión"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PRC-005-ELECTROVENTILADOR",
+      "consulta": "El electroventilador CMP-09 no parece responder a las órdenes de la unidad de control. ¿Cómo se comprueba su funcionamiento?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-PRC-005_Prueba_funcional_del_electroventilador.pdf",
+          "secciones": [
+            "Pasos",
+            "Valores esperados"
+          ]
+        },
+        {
+          "documento": "HTM240-DIA-001_Manual_diagnostico.pdf",
+          "secciones": [
+            "4.5 Electroventilador funcionando de forma continua"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "DIA-TESTIGOS-MULTIPLES",
+      "consulta": "Se han encendido tres o más testigos del sistema térmico al mismo tiempo. ¿Cómo debo abordar el diagnóstico inicial?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-DIA-001_Manual_diagnostico.pdf",
+          "secciones": [
+            "4.11 Activación simultánea de varios testigos"
+          ]
+        },
+        {
+          "documento": "HTM240-ADV-001_Testigos_y_mensajes.pdf",
+          "secciones": [
+            "3. Posibles combinaciones de testigos",
+            "4. Acciones inmediatas recomendadas por nivel de urgencia"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PRC-003-FLUJO-BAJO",
+      "consulta": "La bomba auxiliar A funciona, pero el caudal del circuito de batería es bajo. ¿Qué comprobación permite detectar si el filtro está obstruido?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-PRC-003_Verificacion_de_la_bomba_electrica_auxiliar_A_(circuito_de_bateria).pdf",
+          "secciones": [
+            "Pasos",
+            "Acción si el resultado no es correcto"
+          ]
+        },
+        {
+          "documento": "HTM240-PRC-011_Sustitucion_del_filtro_del_circuito_de_bateria.pdf",
+          "secciones": [
+            "Pasos",
+            "Valores esperados"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ESQ-ARQUITECTURA",
+      "consulta": "¿Cómo se organiza el sistema ThermoDrive en sus tres circuitos térmicos y qué papel tiene la TCU?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-ESQ-001_Esquemas_tecnicos.pdf",
+          "secciones": [
+            "1. Diagrama de arquitectura general",
+            "5. Relación entre sensores, actuadores y TCU"
+          ]
+        },
+        {
+          "documento": "HTM240-MAN-001_Manual_general.pdf",
+          "secciones": [
+            "1. Objetivo del sistema",
+            "2. Arquitectura funcional",
+            "7. Interacción con la Unidad de Control Térmico"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "PRC-007-SENSOR-TEMPERATURA",
+      "consulta": "¿Cómo se comprueba si un sensor de temperatura informa un valor incorrecto respecto a la temperatura real?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-PRC-007_Verificacion_de_sensores_de_temperatura.pdf",
+          "secciones": [
+            "Pasos",
+            "Valores esperados"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "OPE-MODO-PROTECCION",
+      "consulta": "El vehículo ha perdido potencia y limita la aceleración por protección térmica. ¿Qué significa ese modo y cuándo se desactiva?",
+      "version": "V2.0",
+      "relevantes": [
+        {
+          "documento": "HTM240-OPE-001_Manual_operacion.pdf",
+          "secciones": [
+            "3. Modos de funcionamiento",
+            "8. Condiciones de funcionamiento degradado"
+          ]
+        },
+        {
+          "documento": "HTM240-DIA-001_Manual_diagnostico.pdf",
+          "secciones": [
+            "4.12 Rendimiento reducido del vehículo"
+          ]
+        }
+      ]
+    }
+  ]
+}

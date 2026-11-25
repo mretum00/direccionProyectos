@@ -2,7 +2,9 @@ import type { Conversation } from './conversation';
 
 type Role = 'user' | 'assistant';
 
-type EvidenceStatus = 'high' | 'medium' | 'insufficient';
+export type EvidenceStatus = 'high' | 'medium' | 'insufficient';
+
+export type ClarificationKind = 'engine_version' | 'technical' | 'version_mismatch' | 'version_comparison';
 
 export type SourceType =
   | 'manual'
@@ -36,6 +38,46 @@ export interface ChatRequest {
   profile: Profile;
 }
 
+export interface SafetyAlert {
+  code: 'real_vehicle' | 'high_voltage' | 'engine_overheating';
+  severity: 'warning' | 'critical';
+  title: string;
+  message: string;
+}
+
+export type ClaimCheckStatus = 'supported' | 'conflicting' | 'not_found' | 'uncertain' | 'unverified';
+
+export interface ClaimCheck {
+  claim: string;
+  status: ClaimCheckStatus;
+  source_ids: string[];
+  evidence_excerpt?: string | null;
+}
+
+export interface ClaimVerification {
+  status: 'reviewed' | 'needs_review' | 'unavailable' | 'no_claims' | 'not_run';
+  claims_total: number;
+  claims_supported: number;
+  claims: ClaimCheck[];
+  /** Indica que el backend limitó el texto a afirmaciones con cita literal validada. */
+  answer_restricted?: boolean;
+}
+
+export type RequestedEvidenceStatus = 'supported' | 'not_found' | 'uncertain' | 'conflicting';
+
+export interface RequestedEvidenceItem {
+  item: string;
+  status: RequestedEvidenceStatus;
+  source_ids: string[];
+  evidence_excerpt?: string | null;
+}
+
+export interface EvidenceSufficiency {
+  status: 'sufficient' | 'partial' | 'insufficient' | 'unavailable' | 'not_run';
+  requested_items: RequestedEvidenceItem[];
+  missing_information: string[];
+}
+
 export interface Source {
   id: string;
   document: string;
@@ -44,9 +86,11 @@ export interface Source {
   page?: number;
   engine_version?: string;
   excerpt?: string;
+  /** Citada explícitamente por el modelo o solo recuperada como contexto. */
+  citation_status?: 'cited' | 'verified' | 'retrieved';
 }
 
-/** Fragmento recuperado en la búsqueda: similitud y si se ha usado en la respuesta. */
+/** Fragmento recuperado durante la búsqueda y si se usó en la respuesta. */
 export interface StepFragment {
   document: string;
   source_type: SourceType;
@@ -56,36 +100,29 @@ export interface StepFragment {
   used: boolean;
 }
 
-/** Un paso del razonamiento del modelo y los fragmentos que cita ("HTM240-DIA-001 · pág. 1"). */
+/** Resumen breve de una comprobación respaldada por fuentes. */
 export interface StepPoint {
   text: string;
   refs?: string[];
 }
 
-/** Una etapa de la transformación de la consulta: original, reformulada o técnica generada. */
+/** Etapa observable de transformación de la consulta. */
 export interface QueryStage {
   label: string;
   text: string;
-  /** Códigos técnicos que ha añadido esta etapa. */
   terms?: string[];
   note?: string;
 }
 
-/** Una fase de los pasos seguidos para llegar a la respuesta. */
+/** Fases observables del proceso RAG; no contiene razonamiento interno del modelo. */
 export interface ReasoningStep {
-  /** 'interpretation' solo aparece en respuestas guardadas antes de `stages`. */
   kind: 'query' | 'interpretation' | 'search' | 'analysis' | 'conclusion';
   title: string;
   detail?: string;
-  /** query: de la pregunta original a la consulta técnica generada. */
   stages?: QueryStage[];
-  /** interpretation: códigos técnicos detectados en la consulta. */
   terms?: string[];
-  /** search: fragmentos recuperados. */
   fragments?: StepFragment[];
-  /** analysis: pasos del razonamiento del modelo. */
   points?: StepPoint[];
-  /** conclusion: nivel de evidencia. */
   evidence?: EvidenceStatus;
 }
 
@@ -94,10 +131,16 @@ export interface AssistantResponse {
   message: { id: string; content: string };
   evidence_status?: EvidenceStatus;
   needs_clarification?: boolean;
+  clarification_kind?: ClarificationKind;
   documents_consulted?: number;
-  /** Solo las fuentes de las que se ha sacado la información de la respuesta. */
   sources?: Source[];
-  /** Pasos seguidos para llegar a la respuesta, por fases (texto plano en respuestas antiguas). */
+  /** Avisos deterministas de seguridad calculados por el backend, independientes del LLM. */
+  safety_alerts?: SafetyAlert[];
+  /** Revisión automática orientativa de afirmaciones frente a fragmentos recuperados. */
+  claim_verification?: ClaimVerification;
+  /** Comprobación previa de que los fragmentos cubren los datos solicitados (R07). */
+  evidence_sufficiency?: EvidenceSufficiency;
+  /** Pasos observables del proceso RAG (texto plano en respuestas antiguas). */
   steps?: (ReasoningStep | string)[];
   /** La conversación ya guardada en el backend, con la pregunta y esta respuesta. */
   conversation: Conversation;

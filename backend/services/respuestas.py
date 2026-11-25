@@ -1,16 +1,12 @@
 """
 Lo que devuelve la API al frontend.
 
-- separar_cierre: separa del texto del LLM los pasos seguidos y los fragmentos
-  que dice haber utilizado.
-- fragmentos_utilizados: se queda solo con los fragmentos de los que el LLM ha
-  sacado la información (no todos los recuperados).
 - construir_fuentes: convierte los fragmentos usados en fuentes (formato
   `Source` de models/schemas.py).
 - respuesta_sin_evidencia: respuesta fija cuando no hay documentación que
   respalde una respuesta. No llama al LLM.
 - pedir_aclaracion: pide al usuario que elija la versión del motor cuando falta
-  o no existe. No llama al LLM. Solo pide la versión: el perfil siempre llega.
+  o no existe. No llama al LLM.
 """
 
 import re
@@ -18,8 +14,6 @@ import uuid
 
 from config import ENGINE_VERSIONS, settings
 
-from .prompts import SECCION_FRAGMENTOS, SECCION_PASOS
-from .retrieval import documento_de
 
 
 # Tipo de documento (según su código, HTM240-XXX-001) -> tipo de fuente del contrato.
@@ -52,204 +46,72 @@ def _extracto(texto: str, limite: int) -> str:
     return texto[:limite] + "..." if len(texto) > limite else texto
 
 
-# Guiones que salen de los PDF o del LLM ("HTM240‑BOL‑006"): todos valen como "-".
-_GUION = r"[-‐-―−]"
-_CODIGO_DOCUMENTO = re.compile(rf"HTM240{_GUION}([A-Z]{{3}}){_GUION}(\d{{3}})")
+def extraer_referencias_citadas(texto_respuesta: str, total_fragmentos: int) -> set[int]:
+    """Extrae los marcadores [F1], [F2] de la sección FUENTE y valida su rango.
 
-
-def codigo_documento(documento: str) -> str:
-    """Código de un documento: "HTM240-HIS-001_Casos_servicio.pdf" -> "HTM240-HIS-001".
-
-    Si el nombre no sigue el formato, se devuelve tal cual.
+    Los marcadores no se aceptan desde otras partes de la respuesta. Así, una mención
+    casual dentro del resumen no convierte por sí sola un fragmento en fuente citada.
+    Devuelve índices 1-based que corresponden al orden de fragmentos del prompt.
     """
-    codigo = _CODIGO_DOCUMENTO.match(documento)
-    return f"HTM240-{codigo.group(1)}-{codigo.group(2)}" if codigo else documento
+    seccion = re.search(
+        r"(?im)^#{1,6}\s*FUENTES?\s*$([\s\S]*?)(?=^#{1,6}\s+|\Z)",
+        texto_respuesta,
+    )
+    if not seccion:
+        return set()
+
+    encontrados = re.findall(r"\[F(\d+)\]", seccion.group(1), flags=re.IGNORECASE)
+    return {int(valor) for valor in encontrados if 1 <= int(valor) <= total_fragmentos}
 
 
-def tipo_documento(documento: str) -> str:
-    """Tipo de fuente del contrato según el código del documento (manual si no se reconoce)."""
-    codigo = _CODIGO_DOCUMENTO.match(documento)
-    return TIPOS_POR_CODIGO.get(codigo.group(1), "manual") if codigo else "manual"
+def construir_fuentes(
+    fragmentos: list[dict],
+    version: str,
+    referencias_citadas: set[int] | None = None,
+) -> list[dict]:
+    """Convierte los fragmentos en fuentes y distingue citas del contexto recuperado.
 
+    `referencias_citadas` contiene índices 1-based validados contra el contexto entregado
+    al modelo. Los fragmentos restantes se conservan como contexto recuperado, no como
+    referencias declaradas por el asistente.
+    """
+    from .retrieval import documento_de
 
-def construir_fuentes(fragmentos: list[dict], version: str) -> list[dict]:
-    """Convierte cada fragmento en una fuente con el formato de `Source` (schemas.py)."""
+    referencias_citadas = referencias_citadas or set()
     fuentes = []
-    for f in fragmentos:
+    for indice, f in enumerate(fragmentos, start=1):
         chunk_id = f["chunk_id"]
         documento = documento_de(chunk_id)
-        codigo = codigo_documento(documento)
+
+        # Código del documento a partir del nombre: "HTM240-HIS-001_Casos..." -> "HTM240-HIS-001".
+        codigo = re.match(r"HTM240-([A-Z]{3})-\d{3}", documento)
+
+        # Tipo de fuente según el código del documento; si no se reconoce, manual.
+        tipo = TIPOS_POR_CODIGO.get(codigo.group(1), "manual") if codigo else "manual"
 
         # Sección: código del documento y, en los casos de servicio, el código del caso.
-        partes_seccion = [codigo] if codigo != documento else []
+        partes_seccion = [codigo.group(0)] if codigo else []
         if f.get("seccion"):
             partes_seccion.append(f["seccion"])
 
         fuentes.append({
             "id": chunk_id,
             "document": documento,
-            "source_type": tipo_documento(documento),
+            "source_type": tipo,
             "section": " · ".join(partes_seccion) or None,
             # Página del PDF donde empieza el fragmento (None se omite en la respuesta).
             "page": f.get("pagina"),
             # Versiones a las que aplica el fragmento, no la elegida por el usuario.
             "engine_version": ", ".join(f.get("versiones") or [version]),
             "excerpt": _extracto(f["texto"], settings.source_excerpt_chars),
+            "citation_status": "cited" if indice in referencias_citadas else "retrieved",
         })
     return fuentes
 
 
-_ENCABEZADO = re.compile(r"^\s*#{1,6}\s*\**\s*(.+?)\s*\**\s*:?\s*$")
-_VINETA = re.compile(r"^\s*(?:\d+\s*[.)]|[-*•])\s*")
-
-
-def separar_cierre(texto: str) -> tuple[str, list[str], list[int] | None]:
-    """Separa del texto del LLM las secciones de cierre que pide el prompt.
-
-    Devuelve (contenido, pasos, numeros_fragmentos):
-      - contenido: la respuesta sin "### PASOS SEGUIDOS" ni "### FRAGMENTOS UTILIZADOS".
-      - pasos: cada paso del razonamiento, sin la numeración.
-      - numeros_fragmentos: los números de "F1, F3" -> [1, 3]; [] si escribió "Ninguno"
-        y None si el LLM no añadió la sección (así se sabe que hay que deducirlos).
-    """
-    lineas_contenido: list[str] = []
-    lineas_pasos: list[str] = []
-    lineas_fragmentos: list[str] = []
-    destino = lineas_contenido
-    hay_fragmentos = False
-
-    for linea in texto.split("\n"):
-        encabezado = _ENCABEZADO.match(linea)
-        if encabezado:
-            titulo = encabezado.group(1).upper()
-            if titulo.startswith(SECCION_PASOS):
-                destino = lineas_pasos
-                continue
-            if titulo.startswith(SECCION_FRAGMENTOS):
-                destino, hay_fragmentos = lineas_fragmentos, True
-                continue
-            # Cualquier otro encabezado vuelve a ser parte de la respuesta.
-            destino = lineas_contenido
-        destino.append(linea)
-
-    pasos = [_VINETA.sub("", linea).strip() for linea in lineas_pasos]
-    pasos = [paso for paso in pasos if paso]
-
-    numeros = None
-    if hay_fragmentos:
-        numeros = [int(n) for n in re.findall(r"\bF\s*(\d+)\b", " ".join(lineas_fragmentos), re.IGNORECASE)]
-
-    return "\n".join(lineas_contenido).strip(), pasos, numeros
-
-
-# "(F1, F3)" -> "F1, F3": la cita del documento ya se entiende sin paréntesis.
-_REFS_ENTRE_PARENTESIS = re.compile(r"\(\s*(F\d+(?:\s*(?:,|;|y|e)\s*F\d+)*)\s*\)")
-# Una referencia F1, con el nombre del documento que el LLM escribe a veces delante
-# ("HTM240-DIA-001_Manual.pdf F1") o el código detrás ("F1 (BOL-003)"): sobran.
-_REFERENCIA = re.compile(
-    rf"(?:(HTM240{_GUION}[A-Z]{{3}}{_GUION}\d{{3}}[\w.]*)\s+)?"
-    r"\bF(\d+)\b"
-    rf"(?:\s*\((?:HTM240{_GUION}?)?[A-Z]{{3}}{_GUION}?\d{{3}}\))?"
-)
-
-
-def cita_fragmento(f: dict) -> str:
-    """Cómo se cita un fragmento al usuario: "HTM240-BOL-006 · pág. 3"."""
-    codigo = codigo_documento(documento_de(f["chunk_id"]))
-    return f"{codigo} · pág. {f['pagina']}" if f.get("pagina") is not None else codigo
-
-
-def _ids_a_referencias(texto: str, fragmentos: list[dict]) -> str:
-    """Si el LLM copia el id interno de un fragmento ("HTM240-DIA-001_Manual.pdf_1"), pasa a "F1"."""
-    texto = normalizar_codigos(texto)
-    # Los ids más largos primero y sin dígito detrás: "..._pdf_1" no debe comerse "..._pdf_10".
-    for numero, f in sorted(enumerate(fragmentos, start=1), key=lambda par: -len(par[1].get("chunk_id", ""))):
-        if f.get("chunk_id"):
-            texto = re.sub(re.escape(f["chunk_id"]) + r"(?!\d)", f"F{numero}", texto)
-    return texto
-
-
-def citar_fragmentos(texto: str, fragmentos: list[dict]) -> str:
-    """Cambia las referencias internas del prompt (F1, F2...) por el documento que citan.
-
-    "Consulté F2" -> "Consulté HTM240-BOL-006 · pág. 3". Al usuario "F2" no le dice nada.
-    """
-    def _cita(coincidencia: re.Match) -> str:
-        delante, numero = coincidencia.group(1), int(coincidencia.group(2))
-        if not 1 <= numero <= len(fragmentos):
-            return coincidencia.group(0)
-        f = fragmentos[numero - 1]
-        cita = cita_fragmento(f)
-        # Si el documento escrito delante es otro distinto, se conserva.
-        if delante and codigo_documento(delante) != codigo_documento(documento_de(f["chunk_id"])):
-            return f"{delante} {cita}"
-        return cita
-
-    texto = _REFS_ENTRE_PARENTESIS.sub(lambda m: m.group(1), _ids_a_referencias(texto, fragmentos))
-    return _REFERENCIA.sub(_cita, texto)
-
-
-def normalizar_codigos(texto: str) -> str:
-    """Guiones raros dentro de códigos ("HTM240‑DIA‑001", "TES‑01") -> guion normal."""
-    return re.sub(r"(?<=[A-Z0-9])[‐-‒−](?=[A-Z0-9])", "-", texto)
-
-
-def extraer_referencias(texto: str, fragmentos: list[dict]) -> tuple[str, list[str]]:
-    """Saca de un paso del LLM sus referencias (F1, F2...) para mostrarlas aparte.
-
-    "Revisé la tabla de HTM240-ADV-001 (F2)." -> ("Revisé la tabla de HTM240-ADV-001.",
-    ["HTM240-ADV-001 · pág. 2"]). Si el LLM escribió el nombre del fichero delante
-    de la referencia, se deja su código en el texto para que la frase siga teniendo sentido.
-    """
-    citas: list[str] = []
-
-    def _quitar(coincidencia: re.Match) -> str:
-        delante, numero = coincidencia.group(1), int(coincidencia.group(2))
-        if not 1 <= numero <= len(fragmentos):
-            return coincidencia.group(0)
-        f = fragmentos[numero - 1]
-        cita = cita_fragmento(f)
-        if cita not in citas:
-            citas.append(cita)
-        if delante:
-            return codigo_documento(delante)
-        # Al final de la frase o entre paréntesis sobra; en medio ("Consulté F2 para...")
-        # se deja el código del documento para que la frase siga leyéndose bien.
-        resto = coincidencia.string[coincidencia.end():].lstrip()
-        fin = not resto or re.match(r"[.,;:)]|(?:y|e)\s+F\d", resto)
-        return "" if fin else codigo_documento(documento_de(f["chunk_id"]))
-
-    texto = _REFERENCIA.sub(_quitar, _ids_a_referencias(texto, fragmentos))
-    # Restos de quitar las referencias: "()", "(X, )", " ,", "  ", " .", "en." / "según,".
-    texto = re.sub(r"\(\s*(?:[,;]|y|e)?\s*\)", "", texto)
-    texto = re.sub(r"\s+(?:en|de|del|según|segun|con|y)(?=\s*(?:[,.;:)]|$))", "", texto)
-    texto = re.sub(r"\s*[,;]\s*\)", ")", texto)
-    texto = re.sub(r"\(\s*[,;]\s*", "(", texto)
-    texto = re.sub(r"\s+([,.;:)])", r"\1", texto)
-    texto = re.sub(r"\s{2,}", " ", texto).strip()
-    return texto, citas
-
-
-def fragmentos_utilizados(fragmentos: list[dict], numeros: list[int] | None, contenido: str) -> list[dict]:
-    """Se queda solo con los fragmentos de los que el LLM ha sacado la información.
-
-    - Si el LLM indicó los fragmentos (F1, F3...), se usan esos (ignorando números
-      que no existan o repetidos), en el orden en que se recuperaron.
-    - Si no añadió la sección, se usan los fragmentos de los documentos que cita
-      en el texto (HTM240-BOL-006...). Si no cita ninguno, no hay fuentes.
-    """
-    if numeros is not None:
-        elegidos = set(numeros)
-        return [f for i, f in enumerate(fragmentos, start=1) if i in elegidos]
-
-    citados = {f"HTM240-{tipo}-{numero}" for tipo, numero in _CODIGO_DOCUMENTO.findall(contenido)}
-    return [f for f in fragmentos if codigo_documento(documento_de(f["chunk_id"])) in citados]
-
-
-def respuesta_sin_evidencia(pasos: list[dict] | None = None) -> dict:
+def respuesta_sin_evidencia() -> dict:
     """Respuesta fija cuando no hay documentación que respalde una respuesta."""
     return {
-        "steps": pasos or None,
         "message": {
             "id": str(uuid.uuid4()),
             "role": "assistant",
@@ -295,3 +157,126 @@ def pedir_aclaracion(version_recibida: str) -> dict:
         "sources": [],
         "documents_consulted": 0,
     }
+
+def _normalizar_cita(texto: str) -> str:
+    """Normaliza una cita para volver a comprobarla antes de mostrarla."""
+    import unicodedata
+
+    return " ".join(unicodedata.normalize("NFKC", texto).casefold().split())
+
+_PATRON_INTERVALO_CAUDAL = re.compile(
+    r"(?<![\w.,])(\d+(?:[.,]\d+)?)\s*(?:a|[-–—])"
+    r"\s*(\d+(?:[.,]\d+)?)\s*(l\s*/\s*min)\b",
+    re.IGNORECASE,
+)
+
+
+def normalizar_intervalos_caudal(texto: str) -> str:
+    """
+    Normaliza los intervalos de caudal expresados en l/min.
+
+    Ejemplos:
+        8a14l/min    -> 8-14 l/min
+        8 a 14 l/min -> 8-14 l/min
+        8–14l/min    -> 8-14 l/min
+
+    No modifica otros valores ni unidades.
+    """
+    return _PATRON_INTERVALO_CAUDAL.sub(
+        lambda coincidencia: (
+            f"{coincidencia.group(1)}-"
+            f"{coincidencia.group(2)} l/min"
+        ),
+        texto,
+    )
+
+def respuesta_limitada_por_verificacion(
+    verificacion: dict,
+    fragmentos: list[dict],
+) -> tuple[str, set[int]]:
+    """Construye una respuesta conservadora solo con afirmaciones verificadas.
+
+    No vuelve a llamar al LLM. Solo conserva afirmaciones ``supported`` que tengan
+    una cita literal validada dentro de un fragmento identificado. Devuelve también
+    los índices 1-based que deben marcarse como fuentes citadas en la respuesta.
+    """
+    fragmentos_por_id = {
+        str(fragmento.get("chunk_id")): (indice, fragmento)
+        for indice, fragmento in enumerate(fragmentos, start=1)
+        if fragmento.get("chunk_id")
+    }
+
+    afirmaciones_respaldadas: list[tuple[str, str, list[int]]] = []
+    for afirmacion in verificacion.get("claims", []):
+        if not isinstance(afirmacion, dict) or afirmacion.get("status") != "supported":
+            continue
+
+        claim = str(afirmacion.get("claim", "")).strip()
+        cita = str(afirmacion.get("evidence_excerpt", "")).strip()
+        ids_fuente = afirmacion.get("source_ids", [])
+        if not claim or not cita or not isinstance(ids_fuente, list):
+            continue
+
+        indices_validos: list[int] = []
+        cita_normalizada = _normalizar_cita(cita)
+        for source_id in ids_fuente:
+            localizado = fragmentos_por_id.get(str(source_id))
+            if localizado is None:
+                continue
+            indice, fragmento = localizado
+            texto_fuente = _normalizar_cita(str(fragmento.get("texto", "")))
+            if cita_normalizada and cita_normalizada in texto_fuente:
+                indices_validos.append(indice)
+
+        if indices_validos:
+            # Evita que el modelo introduzca referencias [Fxx] falsas dentro del texto de claim.
+            claim = re.sub(r"\s*\[F\d+\]", "", claim).strip()
+            afirmaciones_respaldadas.append((claim, cita, sorted(set(indices_validos))))
+
+    total = max(
+        int(verificacion.get("claims_total", len(verificacion.get("claims", [])))),
+        len(verificacion.get("claims", [])),
+    )
+    omitidas = max(total - len(afirmaciones_respaldadas), 0)
+    referencias: set[int] = set()
+
+    if not afirmaciones_respaldadas:
+        texto = (
+            "La revisión automática no ha encontrado ninguna afirmación con una cita literal "
+            "validada en los fragmentos recuperados. Para evitar presentar información técnica "
+            "no comprobada, no se muestra la respuesta generada. Consulta la documentación "
+            "original o solicita una revisión al equipo técnico."
+        )
+        return texto, referencias
+
+    lineas = [
+        "La revisión automática ha detectado afirmaciones que no ha podido respaldar por completo. "
+        "Para evitar presentar información no confirmada, se muestran únicamente las afirmaciones "
+        "con una cita literal validada.",
+        "",
+        "### Información respaldada",
+    ]
+    for claim, cita, indices in afirmaciones_respaldadas:
+        refs = " ".join(f"[F{indice}]" for indice in indices)
+        referencias.update(indices)
+        lineas.extend([f"- {claim} {refs}", f"  > {cita}", ""])
+
+    if omitidas:
+        lineas.append(
+            f"Se han omitido {omitidas} afirmación(es) que no pudieron verificarse "
+            "o presentaron posibles contradicciones."
+        )
+
+    lineas.extend(["", "### FUENTES"])
+    for indice in sorted(referencias):
+        fragmento = fragmentos[indice - 1]
+        chunk_id = str(fragmento.get("chunk_id", ""))
+        documento = chunk_id.rsplit("_", 1)[0] if "_" in chunk_id else chunk_id
+        seccion = str(fragmento.get("seccion") or "")
+        pagina = fragmento.get("pagina")
+        detalle = " · ".join(parte for parte in (documento, seccion) if parte)
+        if pagina is not None:
+            detalle = f"{detalle} · página {pagina}"
+        lineas.append(f"- [F{indice}] {detalle}" if detalle else f"- [F{indice}]")
+
+    return "\n".join(lineas).strip(), referencias

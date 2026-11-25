@@ -1,38 +1,46 @@
+"""Pasos observables del proceso RAG para mostrarlos en el chat.
+
+Esta capa describe operaciones verificables del sistema: transformación de la
+consulta, fragmentos recuperados, cobertura documental R07 y resultado final.
+No expone ni solicita razonamiento interno privado del modelo.
 """
-Pasos seguidos para llegar a una respuesta (campo `steps` de la API).
 
-Cada paso es una fase del proceso con datos concretos, en el formato de
-`ReasoningStep` (models/schemas.py):
-
-  query           pregunta original -> (reformulada) -> consulta técnica generada
-  search         cada fragmento recuperado con su similitud y si se ha usado o descartado
-  analysis        el razonamiento del LLM sobre los fragmentos (sus propios pasos)
-  conclusion      nivel de evidencia y por qué
-
-El frontend (components/chat/ReasoningSteps.tsx) los dibuja como una línea temporal.
-"""
+from __future__ import annotations
 
 import re
 from datetime import datetime
+from typing import Any
 
-from .respuestas import codigo_documento, extraer_referencias, normalizar_codigos, tipo_documento
 from .retrieval import documento_de
 
-# Nombre de cada perfil tal como se muestra al usuario.
 PERFILES = {"user": "Conductor", "mechanic": "Técnico de mantenimiento"}
+_CODIGO_TECNICO = re.compile(
+    r"\b(?:CMP|TES|CIR)-\d{2}\b|\bHTM-(?:TOOL-)?\d{2,4}\b|\bHTM240-[A-Z]{3}-\d{3}\b"
+)
+_TIPOS_POR_CODIGO = {
+    "DTC": "dtc_catalog",
+    "DIC": "glossary",
+    "HIS": "historical_case",
+    "SEG": "safety_manual",
+    "DIA": "decision_tree",
+}
 
-# Códigos técnicos que se destacan en la interpretación: componentes, testigos,
-# circuitos, averías, herramientas y documentos.
-_CODIGO_TECNICO = re.compile(r"\b(?:CMP|TES|CIR)-\d{2}\b|\bHTM-(?:TOOL-)?\d{2,4}\b|\bHTM240-[A-Z]{3}-\d{3}\b")
 
-
-def _plural(n: int, singular: str, plural: str | None = None) -> str:
-    return f"{n} {singular if n == 1 else (plural or singular + 's')}"
+def _normalizar_codigos(texto: str) -> str:
+    return re.sub(r"(?<=[A-Z0-9])[‐‑‒–—−](?=[A-Z0-9])", "-", texto)
 
 
 def _codigos(texto: str) -> list[str]:
-    """Códigos técnicos de un texto, sin repetir y en orden de aparición."""
-    return list(dict.fromkeys(_CODIGO_TECNICO.findall(normalizar_codigos(texto))))
+    return list(dict.fromkeys(_CODIGO_TECNICO.findall(_normalizar_codigos(texto))))
+
+
+def _referencia_fragmento(fragmento: dict[str, Any]) -> str:
+    chunk_id = str(fragmento.get("chunk_id", ""))
+    documento = documento_de(chunk_id) if chunk_id else "Documento desconocido"
+    match = re.match(r"(HTM240-[A-Z]{3}-\d{3})", documento)
+    codigo = match.group(1) if match else documento
+    pagina = fragmento.get("pagina")
+    return f"{codigo} · pág. {pagina}" if pagina is not None else codigo
 
 
 def paso_transformacion(
@@ -42,104 +50,139 @@ def paso_transformacion(
     reformulada: str,
     consulta_tecnica: str,
     fecha: datetime | None = None,
-) -> dict:
-    """Fase 1: cómo se ha transformado la pregunta original en la consulta que se busca.
-
-    `stages` va de la pregunta tal como la escribió el usuario a la consulta técnica
-    generada, pasando por la reformulación con el historial si la ha habido.
-    traducir_consulta devuelve "pregunta (pregunta enriquecida)": solo se muestra la
-    parte enriquecida, que es la que genera el LLM.
-    `detail` incluye siempre cuándo se ha hecho la consulta (`fecha`, por defecto ahora,
-    en la hora local del servidor).
-    """
-    fecha = (fecha or datetime.now()).astimezone()
-    etapas: list[dict] = [{"label": "Pregunta original", "text": original}]
+) -> dict[str, Any]:
+    """Describe cómo se preparó la consulta para la búsqueda."""
+    fecha = (fecha or datetime.now().astimezone()).astimezone()
+    etapas: list[dict[str, Any]] = [{"label": "Pregunta original", "text": original}]
 
     if reformulada != original:
         etapas.append({
             "label": "Reformulada con el historial",
             "text": reformulada,
-            "note": "Sustituye las referencias a mensajes anteriores para que la pregunta se entienda sola.",
+            "note": "Se han resuelto referencias a mensajes anteriores para que la búsqueda sea autónoma.",
         })
 
     enriquecida = consulta_tecnica
     prefijo = f"{reformulada} ("
     if consulta_tecnica.startswith(prefijo) and consulta_tecnica.endswith(")"):
         enriquecida = consulta_tecnica[len(prefijo):-1].strip()
-    enriquecida = normalizar_codigos(enriquecida)
+    enriquecida = _normalizar_codigos(enriquecida)
 
     if enriquecida and enriquecida != reformulada:
-        # Solo se destacan los códigos que no estaban ya en la pregunta.
         anteriores = set(_codigos(reformulada))
-        nuevos = [c for c in _codigos(enriquecida) if c not in anteriores]
+        nuevos = [codigo for codigo in _codigos(enriquecida) if codigo not in anteriores]
         etapas.append({
-            "label": "Consulta técnica generada",
+            "label": "Consulta técnica para la búsqueda",
             "text": enriquecida,
             "terms": nuevos or None,
-            "note": "Generada con el glosario. Solo se usa para buscar en la documentación: "
-                    "el modelo responde a la pregunta original.",
+            "note": "Esta consulta se utiliza para recuperar documentación; la respuesta se redacta para la pregunta del usuario.",
         })
     else:
         etapas.append({
-            "label": "Consulta técnica generada",
+            "label": "Consulta utilizada para la búsqueda",
             "text": reformulada,
-            "note": "El glosario no ha aportado términos técnicos: se busca con la pregunta tal cual.",
+            "note": "No se añadieron términos técnicos adicionales.",
         })
 
     return {
         "kind": "query",
-        "title": "Transformación de la consulta",
+        "title": "Preparación de la consulta",
         "detail": (
-            f"Versión {version} · Perfil {PERFILES.get(perfil, perfil).lower()}"
-            f" · Consulta realizada el {fecha:%d/%m/%Y} a las {fecha:%H:%M:%S}"
+            f"Versión {version} · Perfil {PERFILES.get(perfil, perfil).lower()} · "
+            f"Consulta realizada el {fecha:%d/%m/%Y} a las {fecha:%H:%M:%S}"
         ),
         "stages": etapas,
     }
 
 
-def paso_busqueda(version: str, fragmentos: list[dict], usados: list[dict] | None) -> dict:
-    """Fase 3: cada fragmento recuperado, con su similitud y si se ha usado.
+def paso_busqueda(
+    version: str,
+    fragmentos: list[dict[str, Any]],
+    ids_utilizados: set[str] | None,
+) -> dict[str, Any]:
+    """Resume los fragmentos recuperados y cuáles acabaron citándose en la respuesta."""
+    utilizados = ids_utilizados or set()
+    recuperados = len(fragmentos)
+    usados = len(utilizados)
+    detalle = f"{recuperados} fragmento(s) recuperado(s) para {version}"
+    if ids_utilizados is not None:
+        detalle += f" · {usados} citado(s) en la respuesta"
 
-    `usados` es None cuando no se ha llegado a llamar al LLM (sin evidencia).
-    """
-    ids_usados = {f["chunk_id"] for f in usados or []}
-    detalle = _plural(len(fragmentos), "fragmento recuperado", "fragmentos recuperados")
-    if usados is not None:
-        detalle += f" · {len(ids_usados)} usados en la respuesta"
+    filas = []
+    for fragmento in fragmentos:
+        chunk_id = str(fragmento.get("chunk_id", ""))
+        if not chunk_id:
+            continue
+        documento = documento_de(chunk_id)
+        match = re.match(r"HTM240-([A-Z]{3})-\d{3}", documento)
+        source_type = _TIPOS_POR_CODIGO.get(match.group(1), "manual") if match else "manual"
+        filas.append({
+            "document": match.group(0) if match else documento,
+            "source_type": source_type,
+            "page": fragmento.get("pagina"),
+            "section": fragmento.get("seccion"),
+            "score": round(float(fragmento.get("score", 0.0)), 3),
+            "used": chunk_id in utilizados,
+        })
 
     return {
         "kind": "search",
-        "title": f"Búsqueda en la documentación de {version}",
+        "title": f"Búsqueda documental de {version}",
         "detail": detalle,
-        "fragments": [
-            {
-                "document": codigo_documento(documento_de(f["chunk_id"])),
-                "source_type": tipo_documento(documento_de(f["chunk_id"])),
-                "page": f.get("pagina"),
-                "section": f.get("seccion"),
-                "score": round(float(f.get("score", 0.0)), 3),
-                "used": f["chunk_id"] in ids_usados,
-            }
-            for f in fragmentos
-            if "chunk_id" in f
-        ],
+        "fragments": filas,
     }
 
 
-def paso_razonamiento(puntos: list[str], fragmentos: list[dict]) -> dict | None:
-    """Fase 4: los pasos que el propio LLM dice haber seguido (None si no los ha dado).
-
-    Las referencias F1, F2... de cada punto se sacan del texto a `refs` ("HTM240-DIA-001 · pág. 1")
-    para que el frontend las muestre como fichas y la frase no repita el documento.
-    """
-    if not puntos:
+def paso_cobertura(suficiencia: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Expone los resultados estructurados de R07, nunca el razonamiento del LLM."""
+    if not suficiencia or suficiencia.get("status") in {None, "not_run"}:
         return None
-    detalle = []
-    for punto in puntos:
-        texto, citas = extraer_referencias(punto, fragmentos)
-        if texto:
-            detalle.append({"text": texto, "refs": citas or None})
-    return {"kind": "analysis", "title": "Razonamiento sobre los fragmentos", "points": detalle} if detalle else None
+
+    estado = suficiencia.get("status", "unavailable")
+    titulos = {
+        "sufficient": "Cobertura documental completa",
+        "partial": "Cobertura documental parcial",
+        "insufficient": "Datos solicitados no localizados",
+        "unavailable": "Comprobación de cobertura no disponible",
+    }
+    puntos = []
+    for item in suficiencia.get("requested_items", []):
+        item_estado = item.get("status", "uncertain")
+        if item_estado == "supported":
+            texto = f"Dato respaldado por una cita localizada: {item.get('item', 'dato solicitado')}"
+        elif item_estado == "not_found":
+            texto = f"Dato no localizado: {item.get('item', 'dato solicitado')}"
+        elif item_estado == "conflicting":
+            texto = f"Se encontraron datos contradictorios para: {item.get('item', 'dato solicitado')}"
+        else:
+            texto = f"No se pudo determinar la cobertura de: {item.get('item', 'dato solicitado')}"
+
+        refs = []
+        for source_id in item.get("source_ids", []):
+            # R07 ya valida localmente que el identificador pertenezca a un fragmento.
+            # El ID se convierte aquí a una referencia legible sin exponer texto interno.
+            if source_id:
+                base = str(source_id).rsplit("_", 1)[0]
+                match = re.match(r"(HTM240-[A-Z]{3}-\d{3})", base)
+                refs.append(match.group(1) if match else base)
+        puntos.append({"text": texto, "refs": list(dict.fromkeys(refs)) or None})
+
+    if estado == "unavailable":
+        detalle = "No fue posible comprobar la cobertura documental; por seguridad no se generó una respuesta técnica."
+    else:
+        respaldados = sum(1 for item in suficiencia.get("requested_items", []) if item.get("status") == "supported")
+        total = len(suficiencia.get("requested_items", []))
+        detalle = f"{respaldados} de {total} datos solicitados tienen evidencia localizada y validada."
+
+    if not puntos and estado == "unavailable":
+        puntos.append({"text": detalle})
+
+    return {
+        "kind": "analysis",
+        "title": titulos.get(estado, "Comprobación de cobertura documental"),
+        "detail": detalle,
+        "points": puntos or None,
+    }
 
 
 def paso_conclusion(
@@ -147,32 +190,23 @@ def paso_conclusion(
     mejor_score: float,
     umbral_minimo: float,
     umbral_alto: float,
+    *,
     fuentes: int = 0,
     documentos: int = 0,
-    llamo_al_modelo: bool = True,
-) -> dict:
-    """Fase 5: nivel de evidencia y en qué se basa."""
-    if not llamo_al_modelo:
-        return {
-            "kind": "conclusion",
-            "evidence": "insufficient",
-            "title": "Sin evidencia suficiente",
-            "detail": (
-                f"La mejor similitud ({mejor_score:.2f}) no llega al mínimo de {umbral_minimo:.2f}: "
-                "no se genera respuesta para no inventar datos y se recomienda escalar a soporte."
-            ),
-        }
-
-    respaldo = (
-        f"Respuesta respaldada por {_plural(fuentes, 'fragmento')} de {_plural(documentos, 'documento')}."
-        if fuentes
-        else "El modelo no ha usado ninguno de los fragmentos recuperados, así que no se muestran fuentes."
-    )
+    detalle_extra: str | None = None,
+) -> dict[str, Any]:
+    """Describe el resultado y los umbrales aplicados."""
     if evidencia == "insufficient":
-        titulo, motivo = "Evidencia insuficiente", "El modelo indica que la documentación no basta para responder."
+        titulo = "Evidencia insuficiente"
+        motivo = detalle_extra or f"No se ha autorizado una respuesta técnica (mejor similitud: {mejor_score:.2f}; mínimo: {umbral_minimo:.2f})."
     elif evidencia == "high":
-        titulo, motivo = "Evidencia alta", f"Mejor similitud {mejor_score:.2f} (≥ {umbral_alto:.2f})."
+        titulo = "Evidencia alta"
+        motivo = f"Mejor similitud {mejor_score:.2f} (umbral alto: {umbral_alto:.2f})."
     else:
-        titulo, motivo = "Evidencia media", f"Mejor similitud {mejor_score:.2f} (entre {umbral_minimo:.2f} y {umbral_alto:.2f})."
+        titulo = "Evidencia media"
+        motivo = f"Mejor similitud {mejor_score:.2f} (umbral mínimo: {umbral_minimo:.2f})."
 
-    return {"kind": "conclusion", "evidence": evidencia, "title": titulo, "detail": f"{motivo} {respaldo}"}
+    if evidencia != "insufficient":
+        motivo += f" Se citaron {fuentes} fragmento(s) de {documentos} documento(s)."
+
+    return {"kind": "conclusion", "evidence": evidencia, "title": titulo, "detail": motivo}
